@@ -68,13 +68,13 @@ install_hysteria() {
             ;;
     esac
 
-    # Динамическое получение последней версии через GitHub API
-    echo "Запрос актуальной версии Hysteria с GitHub..."
-    LATEST_VERSION=$(curl -s https://api.github.com/repos/apernet/hysteria/releases/latest | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
-    
-    # Резервный вариант, если у роутера проблемы с API гитхаба или curl вернул пустоту
+    # Динамическое получение последней версии БЕЗ использования GitHub API
+    echo "Запрос актуальной версии Hysteria с GitHub (через редирект)..."
+    LATEST_VERSION=$(curl -sI https://github.com/apernet/hysteria/releases/latest | grep -i 'location:' | sed -E 's/.*\/tag\/([^[:space:]\r\n]+).*/\1/')
+
+    # Если вдруг и это не сработало (например, curl без поддержки SSL или опечатка), ставим базовый фолбек
     if [ -z "$LATEST_VERSION" ] || echo "$LATEST_VERSION" | grep -q "{" ; then
-        echo -e "${YELLOW}Предупреждение: Не удалось определить последнюю версию. Ставим проверенную v2.6.0${NC}"
+        echo -e "${YELLOW}Предупреждение: Не удалось определить версию по редиректу. Ставим проверенную v2.6.0${NC}"
         LATEST_VERSION="v2.6.0"
     fi
 
