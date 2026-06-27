@@ -5,6 +5,7 @@ APP_BASE="/opt/apps/kvas-hysteria"
 BIN_PATH="${APP_BASE}/bin/hysteria"
 TEMPLATE_CONFIG="${APP_BASE}/etc/conf/config.yaml"
 TEMPLATE_INIT="${APP_BASE}/etc/init.d/S99hysteria"
+CHECK_SPACE_SCRIPT="${APP_BASE}/etc/ndm/check_space.sh"
 
 # Глобальные системные пути Entware
 FINAL_CONFIG_DIR="/opt/etc/hysteria"
@@ -57,6 +58,13 @@ show_status() {
 }
 
 install_hysteria() {
+    # Вызываем внешний модуль проверки места. Если он вернул не 0 — выходим.
+    if [ -f "$CHECK_SPACE_SCRIPT" ]; then
+        if ! "$CHECK_SPACE_SCRIPT"; then
+            exit 1
+        fi
+    fi
+
     echo "Определение архитектуры процессора..."
     ARCH=$(uname -m)
     case "$ARCH" in
@@ -86,7 +94,7 @@ install_hysteria() {
     curl -L -o "$BIN_PATH" "https://github.com/apernet/hysteria/releases/download/${LATEST_VERSION}/hysteria-${BINARY_ARCH}"
 
     if [ ! -s "$BIN_PATH" ]; then
-        echo -e "${RED}Ошибка записи файла.${NC}"
+        echo -e "${RED}Ошибка записи файла. Возможно, закончилось место.${NC}"
         rm -f "$BIN_PATH"
         exit 1
     fi
