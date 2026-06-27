@@ -174,6 +174,8 @@ EOC
     curl -s -d '[{"interface": {"name": "'${KEENETIC_PROXY_NAME}'", "up": true}}]' "localhost:79/rci/" > /dev/null 2>&1
 
     echo -e "${GREEN}Интерфейс '${KEENETIC_PROXY_DESC}' успешно обновлен в KeeneticOS!${NC}"
+    echo -e "${YELLOW}Чтобы изменить VPN интерфейс kvas'а, выполните команду:${NC}"
+    echo -e "  ${BLUE}kvas vpn set${NC}"
 }
 
 uninstall_packet() {
