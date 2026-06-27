@@ -52,7 +52,7 @@ show_status() {
     echo "Использование:"
     echo "  $0 install          - Скачать/обновить бинарный файл Hysteria"
     echo "  $0 uninstall        - Полное удаление пакета и интеграции"
-    echo "  $0 add \"link\"       - Парсинг ссылки и создание подключения"
+    echo -e "  $0 add ${BLUE}\"link\"${NC}       - Парсинг ссылки (кавычки ${RED}\"\"${NC} обязательны для экранирования!)"
     echo "  $0 start | stop | restart"
 }
 
@@ -84,7 +84,7 @@ install_hysteria() {
 
     echo -e "Скачиваем ${BLUE}Hysteria $LATEST_VERSION${NC} для ${YELLOW}$BINARY_ARCH${NC}..."
     curl -L -o "$BIN_PATH" "https://github.com/apernet/hysteria/releases/download/${LATEST_VERSION}/hysteria-${BINARY_ARCH}"
-    
+
     if [ ! -s "$BIN_PATH" ]; then
         echo -e "${RED}Ошибка записи файла.${NC}"
         rm -f "$BIN_PATH"
@@ -96,6 +96,7 @@ install_hysteria() {
     echo -e "${GREEN}Бинарный файл успешно развернут.${NC}"
     echo -e "${YELLOW}Чтобы настроить подключение, выполните команду:${NC}"
     echo -e "  ${BLUE}kvas-hysteria add \"hysteria2://...\"${NC}"
+    echo -e "${RED}Важно:${NC} Кавычки ${GREEN}\"\"${NC} обязательны, чтобы ссылка не ломала терминал!"
 }
 
 add_config() {

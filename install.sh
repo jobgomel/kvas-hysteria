@@ -12,7 +12,7 @@ mkdir -p "${APPS_DIR}/etc/init.d"
 mkdir -p "${APPS_DIR}/etc/ndm"
 mkdir -p "/opt/etc/hysteria"
 
-# 2. Скачивание компонентов из репозитория (теперь качаем manager.sh)
+# 2. Скачивание компонентов из репозитория
 echo "Загрузка управляющего скрипта и шаблонов..."
 curl -sL -o "${APPS_DIR}/bin/manager.sh" "${REPO_RAW}/src/bin/manager.sh"
 curl -sL -o "${APPS_DIR}/etc/conf/config.yaml" "${REPO_RAW}/src/etc/conf/config.yaml"
