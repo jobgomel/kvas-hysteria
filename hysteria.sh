@@ -89,8 +89,8 @@ install_hysteria() {
     mkdir -p /opt/bin
     curl -L -o "$BIN_PATH" "https://github.com/apernet/hysteria/releases/latest/download/hysteria-${BINARY_ARCH}"
     
-    if [ ! -s "$BIN_PATH" ] || grep -q "Not Found" "$BIN_PATH"; then
-        echo -e "${RED}Ошибка: Не удалось скачать бинарный файл.${NC}"
+    if [ ! -s "$BIN_PATH" ]; then
+        echo -e "${RED}Ошибка: Файл не записался или пустой.${NC}"
         rm -f "$BIN_PATH"
         exit 1
     fi
