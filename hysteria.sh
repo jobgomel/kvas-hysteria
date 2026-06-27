@@ -59,12 +59,24 @@ install_hysteria() {
     echo "Определение архитектуры процессора..."
     ARCH=$(uname -m)
     case "$ARCH" in
-        armv7l|aarch64) BINARY_ARCH="linux-arm" ;;
+        armv7l|aarch64) 
+            BINARY_ARCH="linux-arm" 
+            ;;
         mips|mipsel)
-            if [ "$(echo -n I | od -to2 | awk '{print $2}')" = "49" ]; then
+            # Надежная проверка порядка байт через opkg conf (работает в Entware всегда)
+            if opkg print-architecture | grep -q "mipsel"; then
+                BINARY_ARCH="linux-mipsle"
+            elif [ -f /proc/cpuinfo ] && grep -q -i "little endian" /proc/cpuinfo; then
                 BINARY_ARCH="linux-mipsle"
             else
-                BINARY_ARCH="linux-mips"
+                # На случай старых ядер проверяем hexdump, если он есть
+                if command -v hexdump >/dev/null; then
+                     BYTE_ORDER=$(echo -n I | hexdump -o | awk '{print $2}' | head -n 1)
+                     [ "$BYTE_ORDER" = "000111" ] && BINARY_ARCH="linux-mipsle" || BINARY_ARCH="linux-mips"
+                else
+                     # Дефолт для Keenetic Ultra (KN-1810) и большинства MIPS-моделей
+                     BINARY_ARCH="linux-mipsle"
+                fi
             fi
             ;;
         *)
