@@ -1,7 +1,6 @@
 #!/bin/sh
 
-# Ссылку ниже вы замените на свой репозиторий, когда создадите его
-SCRIPT_URL="https://raw.githubusercontent.com/YOUR_USERNAME/YOUR_REPO/main/hysteria.sh"
+SCRIPT_URL="https://raw.githubusercontent.com/jobgomel/kvas-hysteria/main/hysteria.sh"
 
 echo "Загрузка менеджера Hysteria 2..."
 mkdir -p /opt/etc/hysteria
