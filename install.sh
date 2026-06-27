@@ -1,19 +1,33 @@
 #!/bin/sh
 
-SCRIPT_URL="https://raw.githubusercontent.com/jobgomel/kvas-hysteria/main/hysteria.sh"
+REPO_RAW="https://raw.githubusercontent.com/jobgomel/kvas-hysteria/main"
+APPS_DIR="/opt/apps/kvas-hysteria"
 
-echo "Загрузка менеджера Hysteria 2..."
-mkdir -p /opt/etc/hysteria
+echo "=== Установка пакета kvas-hysteria ==="
 
-curl -L -o /opt/etc/hysteria/hysteria.sh "$SCRIPT_URL"
+# 1. Создание изолированной структуры папок
+mkdir -p "${APPS_DIR}/bin"
+mkdir -p "${APPS_DIR}/etc/conf"
+mkdir -p "${APPS_DIR}/etc/init.d"
+mkdir -p "${APPS_DIR}/etc/ndm"
+mkdir -p "/opt/etc/hysteria"
 
-if [ ! -s "/opt/etc/hysteria/hysteria.sh" ]; then
-    echo "Ошибка: Не удалось скачать управляющий скрипт."
+# 2. Скачивание компонентов из репозитория
+echo "Загрузка управляющего скрипта и шаблонов..."
+curl -sL -o "${APPS_DIR}/bin/kvas-hysteria" "${REPO_RAW}/src/bin/kvas-hysteria"
+curl -sL -o "${APPS_DIR}/etc/conf/config.yaml" "${REPO_RAW}/src/etc/conf/config.yaml"
+curl -sL -o "${APPS_DIR}/etc/init.d/S99hysteria" "${REPO_RAW}/src/etc/init.d/S99hysteria"
+
+if [ ! -s "${APPS_DIR}/bin/kvas-hysteria" ]; then
+    echo "Ошибка: Не удалось скачать файлы из репозитория."
     exit 1
 fi
 
-chmod +x /opt/etc/hysteria/hysteria.sh
-ln -sf /opt/etc/hysteria/hysteria.sh /opt/bin/hysteria.sh
+chmod +x "${APPS_DIR}/bin/kvas-hysteria"
+chmod +x "${APPS_DIR}/etc/init.d/S99hysteria"
 
-# Запускаем внутреннюю установку бинарников
-/opt/bin/hysteria.sh install
+# 3. Создание системных симлинков для CLI
+ln -sf "${APPS_DIR}/bin/kvas-hysteria" /opt/bin/kvas-hysteria
+
+# 4. Запуск внутреннего процесса установки бинарного файла Hysteria
+/opt/bin/kvas-hysteria install

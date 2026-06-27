@@ -1,0 +1,12 @@
+socks5:
+  listen: 127.0.0.1:10808
+http:
+  listen: 127.0.0.1:10809
+quic:
+  init_to: 10s
+  keepalive_period: 10s
+bandwidth:
+  up: 50 mbps
+  down: 100 mbps
+fast_open: true
+lazy: true
