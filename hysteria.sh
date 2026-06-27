@@ -6,6 +6,13 @@ CONFIG_DIR="/opt/etc/hysteria"
 CONFIG_PATH="${CONFIG_DIR}/config.yaml"
 INIT_PATH="/opt/etc/init.d/S99hysteria"
 
+# Параметры интеграции с Keenetic RCI API
+KEENETIC_PROXY_NAME="Proxy41" # Системное имя интерфейса в Keenetic
+KEENETIC_PROXY_DESC="Kvas-proxy-hysteria"
+PROXY_LOCAL_IP="127.0.0.1"
+PROXY_LOCAL_PORT=10808
+PROXY_PROTO="socks5"
+
 # Цвета для вывода в терминал
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -201,22 +208,42 @@ EOC
     echo -e "${GREEN}Конфигурация обновлена в $CONFIG_PATH${NC}"
     [ -f "$INIT_PATH" ] && "$INIT_PATH" restart
 
-    # === ИНТЕГРАЦИЯ С КИНЕТИКОМ ===
-    if command -v ndc >/dev/null 2>&1; then
-        echo "Интеграция с KeeneticOS: добавляем прокси в админку..."
-        
-        # Создаем интерфейс, настраиваем на тип socks5 и локальный порт 10808
-        ndc interface Kvas-proxy-hysteria proxy >/dev/null 2>&1
-        ndc interface Kvas-proxy-hysteria proxy type socks5 address 127.0.0.1 port 10808 >/dev/null 2>&1
-        ndc interface Kvas-proxy-hysteria up >/dev/null 2>&1
-        
-        # Сохраняем конфигурацию роутера
-        ndc system configuration save >/dev/null 2>&1
-        
-        echo -e "${GREEN}Подключение 'Kvas-proxy-hysteria' успешно создано в панели управления Keenetic!${NC}"
-    else
-        echo -e "${YELLOW}Предупреждение: Утилита ndc не найдена (не KeeneticOS?). Прокси в админке не создан.${NC}"
-    fi
+    # === ИНТЕГРАЦИЯ С КИНЕТИКОМ ЧЕРЕЗ LOCALHOST:79 RCI API ===
+    echo "Интеграция с KeeneticOS API: добавляем прокси в админку..."
+    
+    # 1. Сначала удаляем старый профиль, если он существовал
+    curl -s -d '[{"interface": { "name": "'${KEENETIC_PROXY_NAME}'","no": true }}]' "localhost:79/rci/" > /dev/null 2>&1
+    
+    # 2. Формируем JSON структуру в соответствии с синтаксисом Kvas
+    API_DATA='[{
+        "interface": {
+            "name": "'${KEENETIC_PROXY_NAME}'",
+            "description": "'${KEENETIC_PROXY_DESC}'",
+            "proxy": {
+                "protocol": {
+                    "proto": "'${PROXY_PROTO}'"
+                },
+                "upstream": {
+                    "host": "'${PROXY_LOCAL_IP}'",
+                    "port": "'${PROXY_LOCAL_PORT}'"
+                },
+                "socks5-udp": true
+            }
+        },
+        "system": {
+            "configuration": {
+                "save": true
+            }
+        }
+    }]'
+
+    # 3. Отправляем запрос на создание
+    curl -s -d "${API_DATA}" "localhost:79/rci/" > /dev/null 2>&1
+    
+    # 4. Принудительно поднимаем интерфейс
+    curl -s -d '[{"interface": {"name": "'${KEENETIC_PROXY_NAME}'", "up": true}}]' "localhost:79/rci/" > /dev/null 2>&1
+
+    echo -e "${GREEN}Подключение '${KEENETIC_PROXY_DESC}' успешно создано в панели управления Keenetic!${NC}"
 }
 
 case "$1" in
