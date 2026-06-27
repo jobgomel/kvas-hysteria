@@ -198,8 +198,25 @@ fast_open: true
 lazy: true
 EOC
 
-    echo -e "${GREEN}Конфигурация обновлена in $CONFIG_PATH${NC}"
+    echo -e "${GREEN}Конфигурация обновлена в $CONFIG_PATH${NC}"
     [ -f "$INIT_PATH" ] && "$INIT_PATH" restart
+
+    # === ИНТЕГРАЦИЯ С КИНЕТИКОМ ===
+    if command -v ndc >/dev/null 2>&1; then
+        echo "Интеграция с KeeneticOS: добавляем прокси в админку..."
+        
+        # Создаем интерфейс, настраиваем на тип socks5 и локальный порт 10808
+        ndc interface Kvas-proxy-hysteria proxy >/dev/null 2>&1
+        ndc interface Kvas-proxy-hysteria proxy type socks5 address 127.0.0.1 port 10808 >/dev/null 2>&1
+        ndc interface Kvas-proxy-hysteria up >/dev/null 2>&1
+        
+        # Сохраняем конфигурацию роутера
+        ndc system configuration save >/dev/null 2>&1
+        
+        echo -e "${GREEN}Подключение 'Kvas-proxy-hysteria' успешно создано в панели управления Keenetic!${NC}"
+    else
+        echo -e "${YELLOW}Предупреждение: Утилита ndc не найдена (не KeeneticOS?). Прокси в админке не создан.${NC}"
+    fi
 }
 
 case "$1" in
