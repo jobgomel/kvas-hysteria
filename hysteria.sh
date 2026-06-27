@@ -70,7 +70,7 @@ install_hysteria() {
 
     # Динамическое получение последней версии БЕЗ использования GitHub API
     echo "Запрос актуальной версии Hysteria с GitHub (через редирект)..."
-    LATEST_VERSION=$(curl -sI https://github.com/apernet/hysteria/releases/latest | grep -i 'location:' | sed -E 's/.*\/tag\/([^[:space:]\r\n]+).*/\1/')
+    LATEST_VERSION=$(curl -sI https://github.com/apernet/hysteria/releases/latest | grep -i 'location:' | sed -E 's/.*\/tag\/app\/([^[:space:]\r\n]+).*/\1/')
 
     # Если вдруг и это не сработало (например, curl без поддержки SSL или опечатка), ставим базовый фолбек
     if [ -z "$LATEST_VERSION" ] || echo "$LATEST_VERSION" | grep -q "{" ; then
