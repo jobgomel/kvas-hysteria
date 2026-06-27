@@ -94,6 +94,8 @@ install_hysteria() {
     chmod +x "$BIN_PATH"
     ln -sf "$BIN_PATH" /opt/bin/hysteria
     echo -e "${GREEN}Бинарный файл успешно развернут.${NC}"
+    echo -e "${YELLOW}Чтобы настроить подключение, выполните команду:${NC}"
+    echo -e "  ${BLUE}kvas-hysteria add \"hysteria2://...\"${NC}"
 }
 
 add_config() {
@@ -124,7 +126,6 @@ add_config() {
         exit 1
     fi
 
-    # Сборка конечного конфига: сначала пир, затем обфускация, затем общие настройки из шаблона
     cat << EOC > "$FINAL_CONFIG_PATH"
 server: $SERVER
 auth: $AUTH
@@ -142,20 +143,17 @@ obfs:
 EOC
     fi
 
-    # Дописываем базовые глобальные параметры (порты, лимиты, quic) из шаблона
     echo "" >> "$FINAL_CONFIG_PATH"
     cat "$TEMPLATE_CONFIG" >> "$FINAL_CONFIG_PATH"
 
     echo -e "${GREEN}Конфигурация успешно сгенерирована: $FINAL_CONFIG_PATH${NC}"
 
-    # Соединяем службу автозапуска симлинком ТОЛЬКО после создания конфига
     echo "Активация службы автозапуска..."
     ln -sf "$TEMPLATE_INIT" "$SYSTEM_INIT_PATH"
 
-    # Запуск/перезапуск процесса
     "$SYSTEM_INIT_PATH" restart
 
-    # === ИНТЕГРАЦИЯ С KEEENETIC RCI API ===
+    # === ИНТЕГРАЦИЯ С KEENETIC RCI API ===
     echo "Интеграция с KeeneticOS API..."
     curl -s -d '[{"interface": { "name": "'${KEENETIC_PROXY_NAME}'","no": true }}]' "localhost:79/rci/" > /dev/null 2>&1
 
