@@ -70,12 +70,12 @@ install_hysteria() {
 
     # Динамическое получение последней версии БЕЗ использования GitHub API
     echo "Запрос актуальной версии Hysteria с GitHub (через редирект)..."
-    LATEST_VERSION=$(curl -sI https://github.com/apernet/hysteria/releases/latest | grep -i 'location:' | sed -E 's/.*\/tag\/app\/([^[:space:]\r\n]+).*/\1/')
+    LATEST_VERSION=$(curl -sI https://github.com/apernet/hysteria/releases/latest | grep -i 'location:' | sed -E 's/.*\/tag\/([^[:space:]\r\n]+).*/\1/')
 
     # Если вдруг и это не сработало (например, curl без поддержки SSL или опечатка), ставим базовый фолбек
     if [ -z "$LATEST_VERSION" ] || echo "$LATEST_VERSION" | grep -q "{" ; then
         echo -e "${YELLOW}Предупреждение: Не удалось определить версию по редиректу. Ставим проверенную v2.6.0${NC}"
-        LATEST_VERSION="v2.6.0"
+        LATEST_VERSION="app/v2.6.0"
     fi
 
     # Вывод красивого лога с точной версией (например, v2.6.0)
@@ -83,7 +83,7 @@ install_hysteria() {
     mkdir -p /opt/bin
     
     # Подставляем версию и правильный префикс /app/
-    curl -L -o "$BIN_PATH" "https://github.com/apernet/hysteria/releases/download/app/${LATEST_VERSION}/hysteria-${BINARY_ARCH}"
+    curl -L -o "$BIN_PATH" "https://github.com/apernet/hysteria/releases/download/${LATEST_VERSION}/hysteria-${BINARY_ARCH}"
     
     if [ ! -s "$BIN_PATH" ]; then
         echo -e "${RED}Ошибка: Не удалось скачать бинарный файл или диск переполнен.${NC}"
