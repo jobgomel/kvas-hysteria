@@ -75,7 +75,7 @@ install_hysteria() {
 
     echo "Скачиваем Hysteria v2.6.0 для $BINARY_ARCH..."
     mkdir -p /opt/bin
-    curl -L -o "$BIN_PATH" "https://github.com/apernet/hysteria/releases/download/app/v2.6.0/hysteria-${BINARY_ARCH}"
+    curl -L -o "$BIN_PATH" "https://github.com/apernet/hysteria/releases/latest/download/hysteria-${BINARY_ARCH}"
     
     if [ ! -s "$BIN_PATH" ] || grep -q "Not Found" "$BIN_PATH"; then
         echo -e "${RED}Ошибка: Не удалось скачать бинарный файл.${NC}"
