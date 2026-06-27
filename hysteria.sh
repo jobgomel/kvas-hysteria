@@ -85,7 +85,7 @@ install_hysteria() {
             ;;
     esac
 
-    echo "Скачиваем Hysteria v2.6.0 для $BINARY_ARCH..."
+    echo "Скачиваем Hysteria v2.9.3 для $BINARY_ARCH..."
     mkdir -p /opt/bin
     curl -L -o "$BIN_PATH" "https://github.com/apernet/hysteria/releases/latest/download/hysteria-${BINARY_ARCH}"
     
