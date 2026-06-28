@@ -1,7 +1,7 @@
 socks5:
-  listen: 127.0.0.1:10808
+  listen: @PROXY_LOCAL_IP:@PROXY_LOCAL_PORT_SOCKS
 http:
-  listen: 127.0.0.1:10809
+  listen: @PROXY_LOCAL_IP:@PROXY_LOCAL_PORT_HTTP
 quic:
   init_to: 10s
   keepalive_period: 10s
