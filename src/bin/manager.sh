@@ -1,8 +1,19 @@
 #!/bin/sh
 
-# Изолированные пути приложения
+# Изолированные базовые пути приложения
 APP_NAME="kvas-hysteria"
 APP_BASE="/opt/apps/${APP_NAME}"
+ENV_CONFIG="${APP_BASE}/etc/conf/env.sh" # <-- Путь к общему конфигу переменных
+
+# Импортируем глобальные переменные проекта
+if [ -f "$ENV_CONFIG" ]; then
+    . "$ENV_CONFIG"
+else
+    echo "Критическая ошибка: Файл конфигурации среды $ENV_CONFIG не найден!"
+    exit 1
+fi
+
+# Пути к компонентам приложения (уже используют APP_BASE)
 BIN_PATH="${APP_BASE}/bin/hysteria"
 TEMPLATE_CONFIG="${APP_BASE}/etc/conf/config.yaml"
 TEMPLATE_INIT="${APP_BASE}/etc/init.d/S99hysteria"
@@ -13,20 +24,6 @@ TEST_SCRIPT="${APP_BASE}/etc/ndm/test_connection.sh"
 FINAL_CONFIG_DIR="/opt/etc/hysteria"
 FINAL_CONFIG_PATH="${FINAL_CONFIG_DIR}/config.yaml"
 SYSTEM_INIT_PATH="/opt/etc/init.d/S99hysteria"
-
-# Параметры Keenetic RCI API
-KEENETIC_PROXY_NAME="Proxy41"
-KEENETIC_PROXY_DESC="Kvas-proxy-hysteria"
-PROXY_LOCAL_IP="127.0.0.1"
-PROXY_LOCAL_PORT=10808
-PROXY_PROTO="socks5"
-
-# Цвета
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[0;33m'
-BLUE='\033[0;34m'
-NC='\033[0;0m'
 
 show_status() {
     echo "=== Менеджер Kvas-Hysteria ==="
@@ -61,12 +58,7 @@ show_status() {
 }
 
 run_test() {
-    if [ -f "$TEST_SCRIPT" ]; then
-        "$TEST_SCRIPT"
-    else
-        echo -e "${RED}Ошибка: Компонент тестирования не найден.${NC}"
-        exit 1
-    fi
+    if [ -f "$TEST_SCRIPT" ]; then "$TEST_SCRIPT"; else return 1; fi
 }
 
 install_hysteria() {
@@ -155,7 +147,7 @@ install_hysteria() {
     echo -e "${GREEN}Бинарный файл успешно развернут!${NC}"
 
     # Если служба до этого работала — запускаем её обратно на новом бинарнике
-if [ "$WAS_RUNNING" -eq 1 ]; then
+    if [ "$WAS_RUNNING" -eq 1 ]; then
         echo "Перезапускаем службу..."
         "$SYSTEM_INIT_PATH" start
         sleep 2
@@ -205,6 +197,7 @@ add_config() {
         exit 1
     fi
 
+    # Генерируем верхнюю (динамическую) часть конфига
     cat << EOC > "$FINAL_CONFIG_PATH"
 server: $SERVER
 auth: $AUTH
@@ -223,7 +216,13 @@ EOC
     fi
 
     echo "" >> "$FINAL_CONFIG_PATH"
-    cat "$TEMPLATE_CONFIG" >> "$FINAL_CONFIG_PATH"
+
+    # ЭЛЕГАНТНОЕ РЕШЕНИЕ: Обрабатываем шаблон через sed, заменяя @ПЛЕЙСХОЛДЕРЫ на переменные,
+    # и дописываем результат в рабочий config.yaml
+    sed -e "s|@PROXY_LOCAL_IP|${PROXY_LOCAL_IP}|g" \
+        -e "s|@PROXY_LOCAL_PORT_SOCKS|${PROXY_LOCAL_PORT_SOCKS}|g" \
+        -e "s|@PROXY_LOCAL_PORT_HTTP|${PROXY_LOCAL_PORT_HTTP}|g" \
+        "$TEMPLATE_CONFIG" >> "$FINAL_CONFIG_PATH"
 
     echo -e "${GREEN}Конфигурация успешно сгенерирована: $FINAL_CONFIG_PATH${NC}"
 
@@ -231,19 +230,20 @@ EOC
     ln -sf "$TEMPLATE_INIT" "$SYSTEM_INIT_PATH"
 
     "$SYSTEM_INIT_PATH" restart
-    sleep 2 # Даем 2 секунды на инициализацию перед тестом
+    sleep 2
 
     # === ИНТЕГРАЦИЯ С KEENETIC RCI API ===
     echo "Интеграция с KeeneticOS API..."
     curl -s -d '[{"interface": { "name": "'${KEENETIC_PROXY_NAME}'","no": true }}]' "localhost:79/rci/" > /dev/null 2>&1
 
+    # В JSON подставляем порт из env.sh (PROXY_LOCAL_PORT_SOCKS вместо старого PROXY_LOCAL_PORT)
     API_DATA='[{
         "interface": {
             "name": "'${KEENETIC_PROXY_NAME}'",
             "description": "'${KEENETIC_PROXY_DESC}'",
             "proxy": {
                 "protocol": { "proto": "'${PROXY_PROTO}'" },
-                "upstream": { "host": "'${PROXY_LOCAL_IP}'", "port": "'${PROXY_LOCAL_PORT}'" },
+                "upstream": { "host": "'${PROXY_LOCAL_IP}'", "port": "'${PROXY_LOCAL_PORT_SOCKS}'" },
                 "socks5-udp": true
             }
         },
@@ -258,7 +258,7 @@ EOC
     echo -e "  ${BLUE}kvas vpn set${NC}"
 
     echo ""
-    run_test # Авто-тест после добавления новой конфигурации
+    run_test
 }
 
 uninstall_packet() {

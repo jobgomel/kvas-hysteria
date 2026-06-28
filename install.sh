@@ -19,6 +19,7 @@ curl -sL -o "${APPS_DIR}/etc/conf/config.yaml" "${REPO_RAW}/src/etc/conf/config.
 curl -sL -o "${APPS_DIR}/etc/init.d/S99hysteria" "${REPO_RAW}/src/etc/init.d/S99hysteria"
 curl -sL -o "${APPS_DIR}/etc/ndm/check_space.sh" "${REPO_RAW}/src/etc/ndm/check_space.sh"
 curl -sL -o "${APPS_DIR}/etc/ndm/test_connection.sh" "${REPO_RAW}/src/etc/ndm/test_connection.sh"
+curl -sL -o "${APPS_DIR}/etc/conf/env.sh" "${REPO_RAW}/src/etc/conf/env.sh"
 
 # Проверка на 404 ошибку GitHub
 if [ ! -s "${APPS_DIR}/bin/manager.sh" ] || grep -q "404:" "${APPS_DIR}/bin/manager.sh"; then
