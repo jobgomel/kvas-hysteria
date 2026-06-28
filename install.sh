@@ -18,6 +18,7 @@ curl -sL -o "${APPS_DIR}/bin/manager.sh" "${REPO_RAW}/src/bin/manager.sh"
 curl -sL -o "${APPS_DIR}/etc/conf/config.yaml" "${REPO_RAW}/src/etc/conf/config.yaml"
 curl -sL -o "${APPS_DIR}/etc/init.d/S99hysteria" "${REPO_RAW}/src/etc/init.d/S99hysteria"
 curl -sL -o "${APPS_DIR}/etc/ndm/check_space.sh" "${REPO_RAW}/src/etc/ndm/check_space.sh"
+curl -sL -o "${APPS_DIR}/etc/ndm/test_connection.sh" "${REPO_RAW}/src/etc/ndm/test_connection.sh"
 
 # Проверка на 404 ошибку GitHub
 if [ ! -s "${APPS_DIR}/bin/manager.sh" ] || grep -q "404:" "${APPS_DIR}/bin/manager.sh"; then
@@ -28,6 +29,7 @@ fi
 chmod +x "${APPS_DIR}/bin/manager.sh"
 chmod +x "${APPS_DIR}/etc/init.d/S99hysteria"
 chmod +x "${APPS_DIR}/etc/ndm/check_space.sh"
+chmod +x "${APPS_DIR}/etc/ndm/test_connection.sh"
 
 # 3. Создание системного симлинка без расширения .sh
 ln -sf "${APPS_DIR}/bin/manager.sh" /opt/bin/kvas-hysteria

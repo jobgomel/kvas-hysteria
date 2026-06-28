@@ -7,6 +7,7 @@ BIN_PATH="${APP_BASE}/bin/hysteria"
 TEMPLATE_CONFIG="${APP_BASE}/etc/conf/config.yaml"
 TEMPLATE_INIT="${APP_BASE}/etc/init.d/S99hysteria"
 CHECK_SPACE_SCRIPT="${APP_BASE}/etc/ndm/check_space.sh"
+TEST_SCRIPT="${APP_BASE}/etc/ndm/test_connection.sh" # <-- Скрипт теста
 
 # Глобальные системные пути Entware
 FINAL_CONFIG_DIR="/opt/etc/hysteria"
@@ -55,11 +56,20 @@ show_status() {
     echo "  ${APP_NAME} install          - Скачать/обновить бинарный файл Hysteria"
     echo "  ${APP_NAME} uninstall        - Полное удаление пакета и интеграции"
     echo -e "  ${APP_NAME} add ${BLUE}\"link\"${NC}       - Парсинг ссылки (кавычки ${RED}\"\"${NC} обязательны для экранирования!)"
+    echo "  ${APP_NAME} test             - Экспресс-тест проксирования туннеля"
     echo "  ${APP_NAME} start | stop | restart"
 }
 
+run_test() {
+    if [ -f "$TEST_SCRIPT" ]; then
+        "$TEST_SCRIPT"
+    else
+        echo -e "${RED}Ошибка: Компонент тестирования не найден.${NC}"
+        exit 1
+    fi
+}
+
 install_hysteria() {
-    # Вызываем внешний модуль проверки места. Если он вернул не 0 — выходим.
     if [ -f "$CHECK_SPACE_SCRIPT" ]; then
         if ! "$CHECK_SPACE_SCRIPT"; then
             exit 1
@@ -148,9 +158,11 @@ install_hysteria() {
     if [ "$WAS_RUNNING" -eq 1 ]; then
         echo "Перезапускаем службу..."
         "$SYSTEM_INIT_PATH" start
+        sleep 2
+        run_test # Авто-тест после обновления «на лету»
     fi
 
-    echo -e "${YELLOW}Чтобы настроить подключение (при необходимости), выполните команду:${NC}"
+    echo -e "${YELLOW}Чтобы настроить подключение, выполните команду:${NC}"
     echo -e "  ${BLUE}kvas-hysteria add \"hysteria2://...\"${NC}"
     echo -e "${RED}Важно:${NC} Кавычки ${GREEN}\"\"${NC} обязательны, чтобы ссылка не ломала терминал!"
 }
@@ -209,6 +221,7 @@ EOC
     ln -sf "$TEMPLATE_INIT" "$SYSTEM_INIT_PATH"
 
     "$SYSTEM_INIT_PATH" restart
+    sleep 2 # Даем 2 секунды на инициализацию перед тестом
 
     # === ИНТЕГРАЦИЯ С KEENETIC RCI API ===
     echo "Интеграция с KeeneticOS API..."
@@ -233,6 +246,9 @@ EOC
     echo -e "${GREEN}Интерфейс '${KEENETIC_PROXY_DESC}' успешно обновлен в KeeneticOS!${NC}"
     echo -e "${YELLOW}Чтобы изменить VPN интерфейс kvas'а, выполните команду:${NC}"
     echo -e "  ${BLUE}kvas vpn set${NC}"
+
+    echo ""
+    run_test # Авто-тест после добавления новой конфигурации
 }
 
 uninstall_packet() {
@@ -252,8 +268,18 @@ case "$1" in
     install) install_hysteria ;;
     uninstall) uninstall_packet ;;
     add) add_config "$2" ;;
-    start|stop|restart)
-        if [ -f "$SYSTEM_INIT_PATH" ]; then "$SYSTEM_INIT_PATH" "$1"; else echo -e "${RED}Ошибка: Конфигурация не инициализирована. Сначала вызовите add${NC}"; fi
+    test) run_test ;; # <-- Вызов ручного теста
+    start|restart)
+        if [ -f "$SYSTEM_INIT_PATH" ]; then
+            "$SYSTEM_INIT_PATH" "$1"
+            sleep 2
+            run_test # <-- Авто-тест после старта/перезапуска
+        else
+            echo -e "${RED}Ошибка: Конфигурация не инициализирована. Сначала вызовите add${NC}"
+        fi
+        ;;
+    stop)
+        if [ -f "$SYSTEM_INIT_PATH" ]; then "$SYSTEM_INIT_PATH" "stop"; else echo -e "${RED}Ошибка: Конфигурация не инициализирована.${NC}"; fi
         ;;
     *) show_status ;;
 esac
