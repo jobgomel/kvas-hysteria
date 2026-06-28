@@ -12,7 +12,7 @@ BLUE='\033[0;34m'
 NC='\033[0;0m'
 
 echo "Выполняется проверка проксирования через Hysteria 2..."
-echo "Запрос к ipinfo.io через socks5://${PROXY_LOCAL_IP}:${PROXY_LOCAL_PORT}..."
+#echo "Запрос к ipinfo.io через socks5://${PROXY_LOCAL_IP}:${PROXY_LOCAL_PORT}..."
 
 # Делаем запрос с таймаутом в 6 секунд, скрывая прогресс-бар curl
 # Используем ipinfo.io, так как он отдает более стабильный и чистый JSON/текст
