@@ -1,6 +1,6 @@
 #!/bin/sh
 
-REPO_RAW="https://raw.githubusercontent.com/jobgomel/kvas-hysteria/task_1_2"
+REPO_RAW="https://raw.githubusercontent.com/jobgomel/kvas-hysteria/main"
 APPS_DIR="/opt/apps/kvas-hysteria"
 
 echo "=== Установка пакета kvas-hysteria ==="

@@ -1,7 +1,8 @@
 #!/bin/sh
 
 # Изолированные пути приложения
-APP_BASE="/opt/apps/kvas-hysteria"
+APP_NAME="kvas-hysteria"
+APP_BASE="/opt/apps/${APP_NAME}"
 BIN_PATH="${APP_BASE}/bin/hysteria"
 TEMPLATE_CONFIG="${APP_BASE}/etc/conf/config.yaml"
 TEMPLATE_INIT="${APP_BASE}/etc/init.d/S99hysteria"
@@ -51,10 +52,10 @@ show_status() {
     fi
     echo "----------------------------------------"
     echo "Использование:"
-    echo "  $0 install          - Скачать/обновить бинарный файл Hysteria"
-    echo "  $0 uninstall        - Полное удаление пакета и интеграции"
-    echo -e "  $0 add ${BLUE}\"link\"${NC}       - Парсинг ссылки (кавычки ${RED}\"\"${NC} обязательны для экранирования!)"
-    echo "  $0 start | stop | restart"
+    echo "  ${APP_NAME} install          - Скачать/обновить бинарный файл Hysteria"
+    echo "  ${APP_NAME} uninstall        - Полное удаление пакета и интеграции"
+    echo -e "  ${APP_NAME} add ${BLUE}\"link\"${NC}       - Парсинг ссылки (кавычки ${RED}\"\"${NC} обязательны для экранирования!)"
+    echo "  ${APP_NAME} start | stop | restart"
 }
 
 install_hysteria() {
