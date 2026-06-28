@@ -7,7 +7,7 @@ BIN_PATH="${APP_BASE}/bin/hysteria"
 TEMPLATE_CONFIG="${APP_BASE}/etc/conf/config.yaml"
 TEMPLATE_INIT="${APP_BASE}/etc/init.d/S99hysteria"
 CHECK_SPACE_SCRIPT="${APP_BASE}/etc/ndm/check_space.sh"
-TEST_SCRIPT="${APP_BASE}/etc/ndm/test_connection.sh" # <-- Скрипт теста
+TEST_SCRIPT="${APP_BASE}/etc/ndm/test_connection.sh"
 
 # Глобальные системные пути Entware
 FINAL_CONFIG_DIR="/opt/etc/hysteria"
@@ -268,12 +268,12 @@ case "$1" in
     install) install_hysteria ;;
     uninstall) uninstall_packet ;;
     add) add_config "$2" ;;
-    test) run_test ;; # <-- Вызов ручного теста
+    test) run_test ;;
     start|restart)
         if [ -f "$SYSTEM_INIT_PATH" ]; then
             "$SYSTEM_INIT_PATH" "$1"
             sleep 2
-            run_test # <-- Авто-тест после старта/перезапуска
+            run_test
         else
             echo -e "${RED}Ошибка: Конфигурация не инициализирована. Сначала вызовите add${NC}"
         fi
