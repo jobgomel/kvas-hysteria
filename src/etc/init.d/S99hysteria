@@ -1,6 +1,6 @@
 #!/bin/sh
 ENABLED=yes
-PROG="/opt/apps/kvas-hysteria/bin/hysteria"
+PROG="/opt/bin/hysteria"
 ARGS="client -c /opt/etc/hysteria/config.yaml"
 PIDFILE="/var/run/hysteria.pid"
 
