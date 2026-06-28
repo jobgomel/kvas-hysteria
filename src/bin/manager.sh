@@ -1,7 +1,8 @@
 #!/bin/sh
 
 # Изолированные пути приложения
-APP_BASE="/opt/apps/kvas-hysteria"
+APP_NAME="kvas-hysteria"
+APP_BASE="/opt/apps/${APP_NAME}"
 BIN_PATH="${APP_BASE}/bin/hysteria"
 TEMPLATE_CONFIG="${APP_BASE}/etc/conf/config.yaml"
 TEMPLATE_INIT="${APP_BASE}/etc/init.d/S99hysteria"
@@ -51,10 +52,10 @@ show_status() {
     fi
     echo "----------------------------------------"
     echo "Использование:"
-    echo "  $0 install          - Скачать/обновить бинарный файл Hysteria"
-    echo "  $0 uninstall        - Полное удаление пакета и интеграции"
-    echo -e "  $0 add ${BLUE}\"link\"${NC}       - Парсинг ссылки (кавычки ${RED}\"\"${NC} обязательны для экранирования!)"
-    echo "  $0 start | stop | restart"
+    echo "  ${APP_NAME} install          - Скачать/обновить бинарный файл Hysteria"
+    echo "  ${APP_NAME} uninstall        - Полное удаление пакета и интеграции"
+    echo -e "  ${APP_NAME} add ${BLUE}\"link\"${NC}       - Парсинг ссылки (кавычки ${RED}\"\"${NC} обязательны для экранирования!)"
+    echo "  ${APP_NAME} start | stop | restart"
 }
 
 install_hysteria() {
@@ -68,35 +69,55 @@ install_hysteria() {
     echo "Определение архитектуры процессора..."
     ARCH=$(uname -m)
     case "$ARCH" in
-        armv7l|aarch64) BINARY_ARCH="linux-arm" ;;
-        mips|mipsel)
-            if opkg print-architecture | grep -q "mipsel"; then
-                BINARY_ARCH="linux-mipsle"
-            else
-                BINARY_ARCH="linux-mipsle"
-            fi
-            ;;
-        *)
-            echo -e "${RED}Ошибка: Неподдерживаемая архитектура: $ARCH${NC}"
-            exit 1
-            ;;
+        *aarch64*|*arm64*)            BINARY_ARCH="arm64" ;;
+        *armv7*|*armv6*|*arm*)        BINARY_ARCH="arm" ;;
+        *mipsel*|*mipsle*)            BINARY_ARCH="mipsle" ;;
+        *mips64el*)                   BINARY_ARCH="mipsle" ;;
+        *mips*)                       BINARY_ARCH="mipsle" ;;
+        *x86_64*|*amd64*)             BINARY_ARCH="amd64" ;;
+        *i?86*|*x86*)                 BINARY_ARCH="386" ;;
+        *)                            BINARY_ARCH="" ;;
     esac
 
-    echo "Запрос актуальной версии Hysteria с GitHub..."
-    LATEST_VERSION=$(curl -sI https://github.com/apernet/hysteria/releases/latest | grep -i 'location:' | sed -E 's/.*\/tag\/([^[:space:]\r\n]+).*/\1/')
-
-    if [ -z "$LATEST_VERSION" ] || echo "$LATEST_VERSION" | grep -q "{" ; then
-        echo -e "${YELLOW}Предупреждение: Переход на базовый релиз v2.6.0${NC}"
-        LATEST_VERSION="app/v2.6.0"
-    fi
-
-    echo -e "Скачиваем ${BLUE}Hysteria $LATEST_VERSION${NC} для ${YELLOW}$BINARY_ARCH${NC}..."
-    curl -L -o "$BIN_PATH" "https://github.com/apernet/hysteria/releases/download/${LATEST_VERSION}/hysteria-${BINARY_ARCH}"
-
-    if [ ! -s "$BIN_PATH" ]; then
-        echo -e "${RED}Ошибка записи файла. Возможно, закончилось место.${NC}"
-        rm -f "$BIN_PATH"
+    if [ -z "$ARCH" ]; then
+        echo -e "${RED}Ошибка: Неподдерживаемая архитектура: $ARCH${NC}"
         exit 1
+    else
+        echo "Запрос актуальной версии Hysteria с GitHub..."
+        LATEST_VERSION=$(curl -sI https://github.com/apernet/hysteria/releases/latest | grep -i 'location:' | sed -E 's/.*\/tag\/([^[:space:]\r\n]+).*/\1/')
+
+        if [ -z "$LATEST_VERSION" ] || echo "$LATEST_VERSION" | grep -q "{" ; then
+            echo -e "${YELLOW}Предупреждение: Переход на базовый релиз v2.6.0${NC}"
+            LATEST_VERSION="app/v2.6.0"
+        fi
+
+        echo -e "Скачиваем ${BLUE}Hysteria $LATEST_VERSION${NC} для ${YELLOW}$BINARY_ARCH${NC}..."
+        curl -L -o "$BIN_PATH" "https://github.com/apernet/hysteria/releases/download/${LATEST_VERSION}/hysteria-linux-${BINARY_ARCH}"
+
+        if [ ! -s "$BIN_PATH" ]; then
+            echo -e "${RED}Ошибка записи файла. Возможно, закончилось место.${NC}"
+            rm -f "$BIN_PATH"
+            exit 1
+        fi
+
+        chmod +x "$BIN_PATH"
+
+        if "$BIN_PATH" version >/dev/null 2>&1; then
+            echo -e "${GREEN}Hysteria установлен (${BINARY_ARCH})${NC}"
+        else
+            # На MIPS без FPU помогает softfloat-вариант
+            if [ "$BINARY_ARCH" = "mipsle" ] || [ "$BINARY_ARCH" = "mips" ]; then
+                echo -e "${RED}Пробую softfloat-вариант hysteria...${NC}"
+                curl -L -o "$BIN_PATH" "https://github.com/apernet/hysteria/releases/download/${LATEST_VERSION}/hysteria-linux-${BINARY_ARCH}-sf"
+            fi
+            if "$BIN_PATH" version >/dev/null 2>&1; then
+                echo -e "${GREEN}Hysteria установлен (${BINARY_ARCH})${NC}"
+            else
+                echo -e "${RED}Hysteria не поддерживается этим устройством.${NC}"
+                rm -f "$BIN_PATH"
+                exit 1
+            fi
+        fi
     fi
 
     chmod +x "$BIN_PATH"
