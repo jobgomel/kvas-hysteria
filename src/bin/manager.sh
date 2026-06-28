@@ -142,7 +142,7 @@ install_hysteria() {
     chmod +x "$BIN_PATH"
     ln -sf "$BIN_PATH" /opt/bin/hysteria
 
-    echo -e "${GREEN}Бинарный файл успешно обновлен!${NC}"
+    echo -e "${GREEN}Бинарный файл успешно развернут!${NC}"
 
     # Если служба до этого работала — запускаем её обратно на новом бинарнике
     if [ "$WAS_RUNNING" -eq 1 ]; then
