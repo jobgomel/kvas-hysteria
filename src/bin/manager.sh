@@ -82,48 +82,75 @@ install_hysteria() {
     if [ -z "$ARCH" ]; then
         echo -e "${RED}Ошибка: Неподдерживаемая архитектура: $ARCH${NC}"
         exit 1
+    fi
+
+    echo "Запрос актуальной версии Hysteria с GitHub..."
+    LATEST_VERSION=$(curl -sI https://github.com/apernet/hysteria/releases/latest | grep -i 'location:' | sed -E 's/.*\/tag\/([^[:space:]\r\n]+).*/\1/')
+
+    if [ -z "$LATEST_VERSION" ] || echo "$LATEST_VERSION" | grep -q "{" ; then
+        echo -e "${YELLOW}Предупреждение: Переход на базовый релиз v2.6.0${NC}"
+        LATEST_VERSION="app/v2.6.0"
+    fi
+
+    # Инициализируем путь к временному файлу
+    TMP_BIN_PATH="${BIN_PATH}.tmp"
+    rm -f "$TMP_BIN_PATH"
+
+    echo -e "Скачиваем ${BLUE}Hysteria $LATEST_VERSION${NC} для ${YELLOW}$BINARY_ARCH${NC} во временный файл..."
+    curl -L -o "$TMP_BIN_PATH" "https://github.com/apernet/hysteria/releases/download/${LATEST_VERSION}/hysteria-linux-${BINARY_ARCH}"
+
+    if [ ! -s "$TMP_BIN_PATH" ]; then
+        echo -e "${RED}Ошибка записи временного файла. Возможно, закончилось место.${NC}"
+        rm -f "$TMP_BIN_PATH"
+        exit 1
+    fi
+
+    chmod +x "$TMP_BIN_PATH"
+
+    # Шаг проверки временного файла на работоспособность
+    if "$TMP_BIN_PATH" version >/dev/null 2>&1; then
+        echo -e "${GREEN}Временный файл успешно проверен (${BINARY_ARCH})${NC}"
     else
-        echo "Запрос актуальной версии Hysteria с GitHub..."
-        LATEST_VERSION=$(curl -sI https://github.com/apernet/hysteria/releases/latest | grep -i 'location:' | sed -E 's/.*\/tag\/([^[:space:]\r\n]+).*/\1/')
-
-        if [ -z "$LATEST_VERSION" ] || echo "$LATEST_VERSION" | grep -q "{" ; then
-            echo -e "${YELLOW}Предупреждение: Переход на базовый релиз v2.6.0${NC}"
-            LATEST_VERSION="app/v2.6.0"
+        # На MIPS без FPU помогает softfloat-вариант
+        if [ "$BINARY_ARCH" = "mipsle" ] || [ "$BINARY_ARCH" = "mips" ]; then
+            echo -e "${RED}Стандартная сборка не запустилась. Пробую softfloat-вариант hysteria...${NC}"
+            rm -f "$TMP_BIN_PATH"
+            curl -L -o "$TMP_BIN_PATH" "https://github.com/apernet/hysteria/releases/download/${LATEST_VERSION}/hysteria-linux-${BINARY_ARCH}-sf"
         fi
 
-        echo -e "Скачиваем ${BLUE}Hysteria $LATEST_VERSION${NC} для ${YELLOW}$BINARY_ARCH${NC}..."
-        curl -L -o "$BIN_PATH" "https://github.com/apernet/hysteria/releases/download/${LATEST_VERSION}/hysteria-linux-${BINARY_ARCH}"
-
-        if [ ! -s "$BIN_PATH" ]; then
-            echo -e "${RED}Ошибка записи файла. Возможно, закончилось место.${NC}"
-            rm -f "$BIN_PATH"
-            exit 1
-        fi
-
-        chmod +x "$BIN_PATH"
-
-        if "$BIN_PATH" version >/dev/null 2>&1; then
-            echo -e "${GREEN}Hysteria установлен (${BINARY_ARCH})${NC}"
+        chmod +x "$TMP_BIN_PATH"
+        if "$TMP_BIN_PATH" version >/dev/null 2>&1; then
+            echo -e "${GREEN}Временный файл успешно проверен (mipsle-sf)${NC}"
         else
-            # На MIPS без FPU помогает softfloat-вариант
-            if [ "$BINARY_ARCH" = "mipsle" ] || [ "$BINARY_ARCH" = "mips" ]; then
-                echo -e "${RED}Пробую softfloat-вариант hysteria...${NC}"
-                curl -L -o "$BIN_PATH" "https://github.com/apernet/hysteria/releases/download/${LATEST_VERSION}/hysteria-linux-${BINARY_ARCH}-sf"
-            fi
-            if "$BIN_PATH" version >/dev/null 2>&1; then
-                echo -e "${GREEN}Hysteria установлен (${BINARY_ARCH})${NC}"
-            else
-                echo -e "${RED}Hysteria не поддерживается этим устройством.${NC}"
-                rm -f "$BIN_PATH"
-                exit 1
-            fi
+            echo -e "${RED}Ошибка: Скачанный бинарник Hysteria не поддерживается этим устройством.${NC}"
+            rm -f "$TMP_BIN_PATH"
+            exit 1
         fi
     fi
 
+    # Проверяем, запущена ли служба прямо сейчас
+    WAS_RUNNING=0
+    PIDFILE="/var/run/hysteria.pid"
+    if [ -f "$SYSTEM_INIT_PATH" ] && [ -f "$PIDFILE" ] && kill -0 $(cat $PIDFILE) 2>/dev/null; then
+        WAS_RUNNING=1
+        echo "Останавливаем текущую службу для быстрой замены бинарного файла..."
+        "$SYSTEM_INIT_PATH" stop
+    fi
+
+    # Производим атомарную замену бинарника
+    mv "$TMP_BIN_PATH" "$BIN_PATH"
     chmod +x "$BIN_PATH"
     ln -sf "$BIN_PATH" /opt/bin/hysteria
-    echo -e "${GREEN}Бинарный файл успешно развернут.${NC}"
-    echo -e "${YELLOW}Чтобы настроить подключение, выполните команду:${NC}"
+
+    echo -e "${GREEN}Бинарный файл успешно обновлен!${NC}"
+
+    # Если служба до этого работала — запускаем её обратно на новом бинарнике
+    if [ "$WAS_RUNNING" -eq 1 ]; then
+        echo "Перезапускаем службу..."
+        "$SYSTEM_INIT_PATH" start
+    fi
+
+    echo -e "${YELLOW}Чтобы настроить подключение (при необходимости), выполните команду:${NC}"
     echo -e "  ${BLUE}kvas-hysteria add \"hysteria2://...\"${NC}"
     echo -e "${RED}Важно:${NC} Кавычки ${GREEN}\"\"${NC} обязательны, чтобы ссылка не ломала терминал!"
 }
