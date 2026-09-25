@@ -39,16 +39,25 @@ else
         echo -e "После установки Hysteria останется критически мало места,"
         echo -e "что может вызвать сбои в работе роутера и других пакетов."
         echo -n "Вы уверены, что хотите продолжить установку? [y/N]: "
-        read -r CONFIRM
+
+        # Чтение из tty обходит EOF закрытого пайпа curl | sh
+        if [ -c /dev/tty ]; then
+            read -r CONFIRM < /dev/tty
+        else
+            read -r CONFIRM
+        fi
+
         case "$CONFIRM" in
             [yY][eE][sS]|[yY])
-                echo "Продолжаем установку на ваш страх и риск..."
+                echo "Продолжаем установку..."
                 ;;
             *)
                 echo "Установка отменена пользователем."
                 exit 1
                 ;;
         esac
+
+
     fi
 fi
 
