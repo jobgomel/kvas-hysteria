@@ -15,11 +15,28 @@
 ---
 
 ## 🛠 Установка
-Запустите команду установки в терминале (SSH) вашего роутера. Скрипт создаст структуру папок, скачает необходимые компоненты и создаст глобальный симлинк `/opt/bin/kvas-hysteria`.
 
-```
+### Вариант 1. Через curl (из репозитория GitHub)
+```bash
+# Установка последней стабильной версии (latest)
 curl -sL https://raw.githubusercontent.com/jobgomel/kvas-hysteria/main/install.sh | sh
+
+# Или установка определенной версии (например, 1.2.0)
+curl -sL https://raw.githubusercontent.com/jobgomel/kvas-hysteria/main/install.sh | sh -s -- 1.2.0
+
+# Просмотр доступных версий релиза
+curl -sL https://raw.githubusercontent.com/jobgomel/kvas-hysteria/main/install.sh | sh -s -- list
 ```
+
+### Вариант 2. Из архива (офлайн / распаковка на роутере)
+1. Распакуйте архив в любую временную папку на роутере:
+   ```bash
+   unzip kvas-hysteria-1.2.0.zip
+   cd kvas-hysteria-1.2.0
+   chmod +x install.sh
+   ./install.sh
+   ```
+2. Скрипт создаст структуру папок в `/opt/apps/kvas-hysteria`, настроит системный симлинк `/opt/bin/kvas-hysteria` и запустит установку бинарника Hysteria 2.
 
 ---
 
