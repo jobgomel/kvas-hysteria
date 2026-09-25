@@ -60,7 +60,7 @@ show_status() {
     echo "Использование:"
     echo "  ${APP_NAME} install          - Скачать/обновить бинарный файл Hysteria"
     echo "  ${APP_NAME} uninstall        - Полное удаление пакета и интеграции"
-    echo -e "  ${APP_NAME} add ${BLUE}\"link\"${NC}       - Парсинг ссылки (кавычки ${RED}\"\"${NC} обязательны для экранирования!)"
+    echo -e "  ${APP_NAME} add [\"link\"]     - Импорт ссылки (без аргументов запросит интерактивный ввод)"
     echo "  ${APP_NAME} test             - Экспресс-тест проксирования туннеля"
     echo "  ${APP_NAME} log              - Просмотр последних строк журнала"
     echo "  ${APP_NAME} start | stop | restart | status"
@@ -166,20 +166,30 @@ install_hysteria() {
             echo ""
             echo -e "${YELLOW}Возможно, конфигурация устарела или неверна.${NC}"
             echo -e "${YELLOW}Чтобы обновить подключение, выполните команду:${NC}"
-            echo -e "  ${BLUE}kvas-hysteria add \"hysteria2://...\"${NC}"
-            echo -e "${RED}Важно:${NC} Кавычки ${GREEN}\"\"${NC} обязательны, чтобы ссылка не ломала терминал!"
+            echo -e "  ${BLUE}kvas-hysteria add${NC}"
+            echo -e "  или: ${BLUE}kvas-hysteria add \"hysteria2://...\"${NC}"
+            echo -e "${RED}Важно:${NC} При передаче аргументом кавычки ${GREEN}\"\"${NC} обязательны!"
         fi
     else
         # Если служба НЕ работала (это первая чистая установка, конфига еще нет)
         echo ""
         echo -e "${YELLOW}Чтобы настроить подключение, выполните команду:${NC}"
-        echo -e "  ${BLUE}kvas-hysteria add \"hysteria2://...\"${NC}"
-        echo -e "${RED}Важно:${NC} Кавычки ${GREEN}\"\"${NC} обязательны, чтобы ссылка не ломала терминал!"
+        echo -e "  ${BLUE}kvas-hysteria add${NC}"
+        echo -e "  или: ${BLUE}kvas-hysteria add \"hysteria2://...\"${NC}"
+        echo -e "${RED}Важно:${NC} При передаче аргументом кавычки ${GREEN}\"\"${NC} обязательны!"
     fi
 }
 
 add_config() {
     URL="$1"
+
+    # 1. Если аргумент не передан или передан '-' — читаем через read / stdin
+    # Это полностью обходит 512-байтный лимит интерактивной строки ash
+    if [ -z "$URL" ] || [ "$URL" = "-" ]; then
+        echo -e "${YELLOW}Вставьте ссылку (hysteria2://...) или путь к файлу и нажмите Enter:${NC}"
+        read -r URL
+    fi
+
     if [ -z "$URL" ]; then
         echo -e "${RED}Ошибка: Не указана ссылка!${NC}"
         exit 1
@@ -188,6 +198,12 @@ add_config() {
     if [ ! -f "$TEMPLATE_CONFIG" ]; then
         echo -e "${RED}Ошибка: Базовый шаблон конфигурации не найден в $TEMPLATE_CONFIG${NC}"
         exit 1
+    fi
+
+    # 2. Если передан путь к локальному файлу
+    if [ -f "$URL" ]; then
+        echo "Чтение из файла $URL..."
+        URL=$(cat "$URL")
     fi
 
     echo "Разбираем конфигурацию пира..."
