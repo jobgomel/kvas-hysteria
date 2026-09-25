@@ -19,11 +19,15 @@ TEMPLATE_CONFIG="${APP_BASE}/etc/conf/config.yaml"
 TEMPLATE_INIT="${APP_BASE}/etc/init.d/S99hysteria"
 CHECK_SPACE_SCRIPT="${APP_BASE}/etc/ndm/check_space.sh"
 TEST_SCRIPT="${APP_BASE}/etc/ndm/test_connection.sh"
+WATCHDOG_SCRIPT="${APP_BASE}/etc/ndm/watchdog.sh"
 
 # Глобальные системные пути Entware
 FINAL_CONFIG_DIR="/opt/etc/hysteria"
 FINAL_CONFIG_PATH="${FINAL_CONFIG_DIR}/config.yaml"
 SYSTEM_INIT_PATH="/opt/etc/init.d/S99hysteria"
+PIDFILE="/var/run/hysteria.pid"
+WATCHDOG_PID="/var/run/hysteria-watchdog.pid"
+LOGFILE="/var/log/hysteria.log"
 
 show_status() {
     echo "=== Менеджер Kvas-Hysteria ==="
@@ -34,9 +38,13 @@ show_status() {
         echo -e "Статус: ${RED}Не установлен${NC}"
     fi
 
-    PIDFILE="/var/run/hysteria.pid"
-    if [ -f "$PIDFILE" ] && kill -0 $(cat $PIDFILE) 2>/dev/null; then
-        echo -e "Служба: ${GREEN}Запущена${NC} (PID: $(cat $PIDFILE))"
+    if [ -f "$PIDFILE" ] && kill -0 $(cat "$PIDFILE") 2>/dev/null; then
+        echo -e "Служба: ${GREEN}Запущена${NC} (PID: $(cat "$PIDFILE"))"
+        if [ -f "$WATCHDOG_PID" ] && kill -0 "$(cat "$WATCHDOG_PID")" 2>/dev/null; then
+            echo -e "Мониторинг: ${GREEN}Активен${NC} (PID: $(cat "$WATCHDOG_PID"))"
+        else
+            echo -e "Мониторинг: ${RED}Не активен${NC}"
+        fi
     else
         echo -e "Служба: ${RED}Остановлена${NC}"
     fi
@@ -54,7 +62,8 @@ show_status() {
     echo "  ${APP_NAME} uninstall        - Полное удаление пакета и интеграции"
     echo -e "  ${APP_NAME} add ${BLUE}\"link\"${NC}       - Парсинг ссылки (кавычки ${RED}\"\"${NC} обязательны для экранирования!)"
     echo "  ${APP_NAME} test             - Экспресс-тест проксирования туннеля"
-    echo "  ${APP_NAME} start | stop | restart"
+    echo "  ${APP_NAME} log              - Просмотр последних строк журнала"
+    echo "  ${APP_NAME} start | stop | restart | status"
 }
 
 run_test() {
@@ -269,16 +278,33 @@ uninstall_packet() {
     curl -s -d '[{"interface": { "name": "'${KEENETIC_PROXY_NAME}'","no": true },"system": {"configuration": {"save": true}}}]' "localhost:79/rci/" > /dev/null 2>&1
 
     echo "Удаление симлинков и файлов пакета..."
-    rm -f /opt/bin/kvas-hysteria /opt/bin/hysteria "$SYSTEM_INIT_PATH" /var/run/hysteria.pid
+    rm -f /opt/bin/kvas-hysteria /opt/bin/hysteria "$SYSTEM_INIT_PATH" "$PIDFILE" "$WATCHDOG_PID" /var/run/hysteria.active "$LOGFILE"
     rm -rf "$FINAL_CONFIG_DIR" "$APP_BASE"
     echo -e "${GREEN}Пакет kvas-hysteria успешно удален.${NC}"
 }
 
+show_log() {
+    if [ -f "$LOGFILE" ]; then
+        echo "=== Журнал $LOGFILE (последние 40 строк) ==="
+        tail -n 40 "$LOGFILE"
+    else
+        echo "Журнал $LOGFILE пуст или не создан."
+    fi
+}
+
 case "$1" in
-    install) install_hysteria ;;
-    uninstall) uninstall_packet ;;
-    add) add_config "$2" ;;
-    test) run_test ;;
+    install)    install_hysteria ;;
+    uninstall)  uninstall_packet ;;
+    add)        add_config "$2" ;;
+    test)       run_test ;;
+    log)        show_log ;;
+    status)
+        if [ -f "$SYSTEM_INIT_PATH" ]; then
+            "$SYSTEM_INIT_PATH" status
+        else
+            show_status
+        fi
+        ;;
     start|restart)
         if [ -f "$SYSTEM_INIT_PATH" ]; then
             "$SYSTEM_INIT_PATH" "$1"
@@ -289,7 +315,13 @@ case "$1" in
         fi
         ;;
     stop)
-        if [ -f "$SYSTEM_INIT_PATH" ]; then "$SYSTEM_INIT_PATH" "stop"; else echo -e "${RED}Ошибка: Конфигурация не инициализирована.${NC}"; fi
+        if [ -f "$SYSTEM_INIT_PATH" ]; then
+            "$SYSTEM_INIT_PATH" "stop"
+        else
+            echo -e "${RED}Ошибка: Конфигурация не инициализирована.${NC}"
+        fi
         ;;
-    *) show_status ;;
+    *)
+        show_status
+        ;;
 esac

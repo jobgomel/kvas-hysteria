@@ -1,34 +1,81 @@
 #!/bin/sh
 ENABLED=yes
 PROG="/opt/bin/hysteria"
-ARGS="client -c /opt/etc/hysteria/config.yaml"
+CONF="/opt/etc/hysteria/config.yaml"
+ARGS="client -c $CONF"
 PIDFILE="/var/run/hysteria.pid"
+LOGFILE="/var/log/hysteria.log"
+
+WATCHDOG_PROG="/opt/apps/kvas-hysteria/etc/ndm/watchdog.sh"
+WATCHDOG_PID="/var/run/hysteria-watchdog.pid"
+ACTIVE_FLAG="/var/run/hysteria.active"
 
 case "$1" in
     start)
         [ "$ENABLED" != "yes" ] && exit 0
-        if [ -f $PIDFILE ] && kill -0 $(cat $PIDFILE) 2>/dev/null; then
+        if [ ! -f "$CONF" ]; then
+            echo "Конфигурация $CONF не найдена. Сначала выполните: kvas-hysteria add"
+            exit 1
+        fi
+        if [ ! -x "$PROG" ]; then
+            echo "Бинарник $PROG не найден. Выполните: kvas-hysteria install"
+            exit 1
+        fi
+        if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
             echo "Hysteria уже запущена."
         else
-            $PROG $ARGS >/dev/null 2>&1 &
-            echo $! > $PIDFILE
+            $PROG $ARGS > "$LOGFILE" 2>&1 &
+            echo $! > "$PIDFILE"
+            touch "$ACTIVE_FLAG"
             echo "Hysteria успешно запущена."
+        fi
+
+        # Запуск фонового мониторинга
+        if [ -x "$WATCHDOG_PROG" ]; then
+            if [ ! -f "$WATCHDOG_PID" ] || ! kill -0 "$(cat "$WATCHDOG_PID")" 2>/dev/null; then
+                "$WATCHDOG_PROG" >/dev/null 2>&1 &
+                echo $! > "$WATCHDOG_PID"
+            fi
         fi
         ;;
     stop)
-        if [ -f $PIDFILE ]; then
-            kill $(cat $PIDFILE) 2>/dev/null
-            rm -f $PIDFILE
+        # 1. Принудительная остановка мониторинга
+        rm -f "$ACTIVE_FLAG"
+        if [ -f "$WATCHDOG_PID" ]; then
+            kill "$(cat "$WATCHDOG_PID")" 2>/dev/null
+            rm -f "$WATCHDOG_PID"
+        fi
+        killall watchdog.sh 2>/dev/null
+
+        # 2. Остановка основного демона Hysteria
+        if [ -f "$PIDFILE" ]; then
+            kill "$(cat "$PIDFILE")" 2>/dev/null
+            rm -f "$PIDFILE"
             echo "Hysteria остановлена."
         else
-            echo "Hysteria не запущена."
+            killall hysteria 2>/dev/null
+            echo "Hysteria не была запущена."
         fi
         ;;
     restart)
         $0 stop && sleep 2 && $0 start
         ;;
+    status)
+        if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
+            echo "Hysteria запущена (PID: $(cat "$PIDFILE"))."
+            if [ -f "$WATCHDOG_PID" ] && kill -0 "$(cat "$WATCHDOG_PID")" 2>/dev/null; then
+                echo "Мониторинг активен (PID: $(cat "$WATCHDOG_PID"))."
+            else
+                echo "Мониторинг не активен."
+            fi
+            exit 0
+        else
+            echo "Hysteria остановлена."
+            exit 1
+        fi
+        ;;
     *)
-        echo "Использование: $0 {start|stop|restart}"
+        echo "Использование: $0 {start|stop|restart|status}"
         exit 1
         ;;
 esac

@@ -2,6 +2,7 @@
 
 REPO_RAW="https://raw.githubusercontent.com/jobgomel/kvas-hysteria/main"
 APPS_DIR="/opt/apps/kvas-hysteria"
+DIR="$(cd "$(dirname "$0")" && pwd)"
 
 echo "=== Установка пакета kvas-hysteria ==="
 
@@ -12,25 +13,30 @@ mkdir -p "${APPS_DIR}/etc/init.d"
 mkdir -p "${APPS_DIR}/etc/ndm"
 mkdir -p "/opt/etc/hysteria"
 
-# 2. Скачивание компонентов из репозитория
-echo "Загрузка управляющего скрипта и шаблонов..."
-curl -sL -o "${APPS_DIR}/bin/manager.sh" "${REPO_RAW}/src/bin/manager.sh"
-curl -sL -o "${APPS_DIR}/etc/conf/config.yaml" "${REPO_RAW}/src/etc/conf/config.yaml"
-curl -sL -o "${APPS_DIR}/etc/init.d/S99hysteria" "${REPO_RAW}/src/etc/init.d/S99hysteria"
-curl -sL -o "${APPS_DIR}/etc/ndm/check_space.sh" "${REPO_RAW}/src/etc/ndm/check_space.sh"
-curl -sL -o "${APPS_DIR}/etc/ndm/test_connection.sh" "${REPO_RAW}/src/etc/ndm/test_connection.sh"
-curl -sL -o "${APPS_DIR}/etc/conf/env.sh" "${REPO_RAW}/src/etc/conf/env.sh"
+# 2. Установка из локального каталога или загрузка из GitHub
+if [ -d "$DIR/src" ]; then
+    echo "Установка компонентов из локального каталога..."
+    cp -rf "$DIR/src/"* "${APPS_DIR}/"
+else
+    echo "Загрузка управляющего скрипта и шаблонов..."
+    curl -sL -o "${APPS_DIR}/bin/manager.sh" "${REPO_RAW}/src/bin/manager.sh"
+    curl -sL -o "${APPS_DIR}/etc/conf/config.yaml" "${REPO_RAW}/src/etc/conf/config.yaml"
+    curl -sL -o "${APPS_DIR}/etc/init.d/S99hysteria" "${REPO_RAW}/src/etc/init.d/S99hysteria"
+    curl -sL -o "${APPS_DIR}/etc/ndm/check_space.sh" "${REPO_RAW}/src/etc/ndm/check_space.sh"
+    curl -sL -o "${APPS_DIR}/etc/ndm/test_connection.sh" "${REPO_RAW}/src/etc/ndm/test_connection.sh"
+    curl -sL -o "${APPS_DIR}/etc/ndm/watchdog.sh" "${REPO_RAW}/src/etc/ndm/watchdog.sh"
+    curl -sL -o "${APPS_DIR}/etc/conf/env.sh" "${REPO_RAW}/src/etc/conf/env.sh"
 
-# Проверка на 404 ошибку GitHub
-if [ ! -s "${APPS_DIR}/bin/manager.sh" ] || grep -q "404:" "${APPS_DIR}/bin/manager.sh"; then
-    echo "Ошибка: Не удалось скачать файлы из репозитория. Проверьте имя ветки и пути."
-    exit 1
+    # Проверка на 404 ошибку GitHub
+    if [ ! -s "${APPS_DIR}/bin/manager.sh" ] || grep -q "404:" "${APPS_DIR}/bin/manager.sh"; then
+        echo "Ошибка: Не удалось скачать файлы из репозитория. Проверьте имя ветки и пути."
+        exit 1
+    fi
 fi
 
 chmod +x "${APPS_DIR}/bin/manager.sh"
 chmod +x "${APPS_DIR}/etc/init.d/S99hysteria"
-chmod +x "${APPS_DIR}/etc/ndm/check_space.sh"
-chmod +x "${APPS_DIR}/etc/ndm/test_connection.sh"
+chmod +x "${APPS_DIR}/etc/ndm/"*.sh 2>/dev/null || true
 
 # 3. Создание системного симлинка без расширения .sh
 ln -sf "${APPS_DIR}/bin/manager.sh" /opt/bin/kvas-hysteria
