@@ -19,11 +19,15 @@ TEMPLATE_CONFIG="${APP_BASE}/etc/conf/config.yaml"
 TEMPLATE_INIT="${APP_BASE}/etc/init.d/S99hysteria"
 CHECK_SPACE_SCRIPT="${APP_BASE}/etc/ndm/check_space.sh"
 TEST_SCRIPT="${APP_BASE}/etc/ndm/test_connection.sh"
+WATCHDOG_SCRIPT="${APP_BASE}/etc/ndm/watchdog.sh"
 
 # Глобальные системные пути Entware
 FINAL_CONFIG_DIR="/opt/etc/hysteria"
 FINAL_CONFIG_PATH="${FINAL_CONFIG_DIR}/config.yaml"
 SYSTEM_INIT_PATH="/opt/etc/init.d/S99hysteria"
+PIDFILE="/var/run/hysteria.pid"
+WATCHDOG_PID="/var/run/hysteria-watchdog.pid"
+LOGFILE="/var/log/hysteria.log"
 
 show_status() {
     echo "=== Менеджер Kvas-Hysteria ==="
@@ -34,9 +38,13 @@ show_status() {
         echo -e "Статус: ${RED}Не установлен${NC}"
     fi
 
-    PIDFILE="/var/run/hysteria.pid"
-    if [ -f "$PIDFILE" ] && kill -0 $(cat $PIDFILE) 2>/dev/null; then
-        echo -e "Служба: ${GREEN}Запущена${NC} (PID: $(cat $PIDFILE))"
+    if [ -f "$PIDFILE" ] && kill -0 $(cat "$PIDFILE") 2>/dev/null; then
+        echo -e "Служба: ${GREEN}Запущена${NC} (PID: $(cat "$PIDFILE"))"
+        if [ -f "$WATCHDOG_PID" ] && kill -0 "$(cat "$WATCHDOG_PID")" 2>/dev/null; then
+            echo -e "Мониторинг: ${GREEN}Активен${NC} (PID: $(cat "$WATCHDOG_PID"))"
+        else
+            echo -e "Мониторинг: ${RED}Не активен${NC}"
+        fi
     else
         echo -e "Служба: ${RED}Остановлена${NC}"
     fi
@@ -50,11 +58,13 @@ show_status() {
     fi
     echo "----------------------------------------"
     echo "Использование:"
+    echo "  ${APP_NAME} update [версия]  - Обновить пакет kvas-hysteria (latest/версия/ветка)"
     echo "  ${APP_NAME} install          - Скачать/обновить бинарный файл Hysteria"
     echo "  ${APP_NAME} uninstall        - Полное удаление пакета и интеграции"
-    echo -e "  ${APP_NAME} add ${BLUE}\"link\"${NC}       - Парсинг ссылки (кавычки ${RED}\"\"${NC} обязательны для экранирования!)"
+    echo -e "  ${APP_NAME} add [\"link\"]     - Импорт ссылки (без аргументов запросит интерактивный ввод)"
     echo "  ${APP_NAME} test             - Экспресс-тест проксирования туннеля"
-    echo "  ${APP_NAME} start | stop | restart"
+    echo "  ${APP_NAME} log              - Просмотр последних строк журнала"
+    echo "  ${APP_NAME} start | stop | restart | status"
 }
 
 run_test() {
@@ -157,20 +167,30 @@ install_hysteria() {
             echo ""
             echo -e "${YELLOW}Возможно, конфигурация устарела или неверна.${NC}"
             echo -e "${YELLOW}Чтобы обновить подключение, выполните команду:${NC}"
-            echo -e "  ${BLUE}kvas-hysteria add \"hysteria2://...\"${NC}"
-            echo -e "${RED}Важно:${NC} Кавычки ${GREEN}\"\"${NC} обязательны, чтобы ссылка не ломала терминал!"
+            echo -e "  ${BLUE}kvas-hysteria add${NC}"
+            echo -e "  или: ${BLUE}kvas-hysteria add \"hysteria2://...\"${NC}"
+            echo -e "${RED}Важно:${NC} При передаче аргументом кавычки ${GREEN}\"\"${NC} обязательны!"
         fi
     else
         # Если служба НЕ работала (это первая чистая установка, конфига еще нет)
         echo ""
         echo -e "${YELLOW}Чтобы настроить подключение, выполните команду:${NC}"
-        echo -e "  ${BLUE}kvas-hysteria add \"hysteria2://...\"${NC}"
-        echo -e "${RED}Важно:${NC} Кавычки ${GREEN}\"\"${NC} обязательны, чтобы ссылка не ломала терминал!"
+        echo -e "  ${BLUE}kvas-hysteria add${NC}"
+        echo -e "  или: ${BLUE}kvas-hysteria add \"hysteria2://...\"${NC}"
+        echo -e "${RED}Важно:${NC} При передаче аргументом кавычки ${GREEN}\"\"${NC} обязательны!"
     fi
 }
 
 add_config() {
     URL="$1"
+
+    # 1. Если аргумент не передан или передан '-' — читаем через read / stdin
+    # Это полностью обходит 512-байтный лимит интерактивной строки ash
+    if [ -z "$URL" ] || [ "$URL" = "-" ]; then
+        echo -e "${YELLOW}Вставьте ссылку (hysteria2://...) или путь к файлу и нажмите Enter:${NC}"
+        read -r URL
+    fi
+
     if [ -z "$URL" ]; then
         echo -e "${RED}Ошибка: Не указана ссылка!${NC}"
         exit 1
@@ -179,6 +199,12 @@ add_config() {
     if [ ! -f "$TEMPLATE_CONFIG" ]; then
         echo -e "${RED}Ошибка: Базовый шаблон конфигурации не найден в $TEMPLATE_CONFIG${NC}"
         exit 1
+    fi
+
+    # 2. Если передан путь к локальному файлу
+    if [ -f "$URL" ]; then
+        echo "Чтение из файла $URL..."
+        URL=$(cat "$URL")
     fi
 
     echo "Разбираем конфигурацию пира..."
@@ -269,16 +295,69 @@ uninstall_packet() {
     curl -s -d '[{"interface": { "name": "'${KEENETIC_PROXY_NAME}'","no": true },"system": {"configuration": {"save": true}}}]' "localhost:79/rci/" > /dev/null 2>&1
 
     echo "Удаление симлинков и файлов пакета..."
-    rm -f /opt/bin/kvas-hysteria /opt/bin/hysteria "$SYSTEM_INIT_PATH" /var/run/hysteria.pid
+    rm -f /opt/bin/kvas-hysteria /opt/bin/hysteria "$SYSTEM_INIT_PATH" "$PIDFILE" "$WATCHDOG_PID" /var/run/hysteria.active "$LOGFILE"
     rm -rf "$FINAL_CONFIG_DIR" "$APP_BASE"
     echo -e "${GREEN}Пакет kvas-hysteria успешно удален.${NC}"
 }
 
+update_packet() {
+    TARGET="$1"
+
+    # Если запрошено обновление бинарника Hysteria
+    if [ "$TARGET" = "hysteria" ] || [ "$TARGET" = "bin" ]; then
+        install_hysteria
+        return $?
+    fi
+
+    echo "=== Обновление пакета kvas-hysteria ==="
+    INSTALL_URL="https://raw.githubusercontent.com/jobgomel/kvas-hysteria/main/install.sh"
+    TMP_INSTALLER="/tmp/kvas_install_$$.sh"
+
+    echo "Загрузка актуального скрипта установки с GitHub..."
+    if ! curl -sL -f -o "$TMP_INSTALLER" "$INSTALL_URL" 2>/dev/null; then
+        echo -e "${RED}Ошибка: Не удалось скачать скрипт установки с ${INSTALL_URL}${NC}"
+        echo "Проверьте доступность интернета."
+        rm -f "$TMP_INSTALLER"
+        return 1
+    fi
+
+    chmod +x "$TMP_INSTALLER"
+
+    echo "Запуск обновления..."
+    if [ -n "$TARGET" ]; then
+        sh "$TMP_INSTALLER" "$TARGET"
+    else
+        sh "$TMP_INSTALLER"
+    fi
+    RET=$?
+
+    rm -f "$TMP_INSTALLER"
+    return "$RET"
+}
+
+show_log() {
+    if [ -f "$LOGFILE" ]; then
+        echo "=== Журнал $LOGFILE (последние 40 строк) ==="
+        tail -n 40 "$LOGFILE"
+    else
+        echo "Журнал $LOGFILE пуст или не создан."
+    fi
+}
+
 case "$1" in
-    install) install_hysteria ;;
-    uninstall) uninstall_packet ;;
-    add) add_config "$2" ;;
-    test) run_test ;;
+    update|upgrade) update_packet "$2" ;;
+    install)    install_hysteria ;;
+    uninstall)  uninstall_packet ;;
+    add)        add_config "$2" ;;
+    test)       run_test ;;
+    log)        show_log ;;
+    status)
+        if [ -f "$SYSTEM_INIT_PATH" ]; then
+            "$SYSTEM_INIT_PATH" status
+        else
+            show_status
+        fi
+        ;;
     start|restart)
         if [ -f "$SYSTEM_INIT_PATH" ]; then
             "$SYSTEM_INIT_PATH" "$1"
@@ -289,7 +368,13 @@ case "$1" in
         fi
         ;;
     stop)
-        if [ -f "$SYSTEM_INIT_PATH" ]; then "$SYSTEM_INIT_PATH" "stop"; else echo -e "${RED}Ошибка: Конфигурация не инициализирована.${NC}"; fi
+        if [ -f "$SYSTEM_INIT_PATH" ]; then
+            "$SYSTEM_INIT_PATH" "stop"
+        else
+            echo -e "${RED}Ошибка: Конфигурация не инициализирована.${NC}"
+        fi
         ;;
-    *) show_status ;;
+    *)
+        show_status
+        ;;
 esac
