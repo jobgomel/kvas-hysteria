@@ -59,14 +59,17 @@ kvas-hysteria add "hysteria2://user:password@your_server_ip:port/?sni=your_sni&o
 ```
 ⚠️ **Важно:** При передаче аргументом всегда берите ссылку в двойные кавычки `""`, иначе спецсимволы (такие как `&` или `?`) будут неверно обработаны командной оболочкой роутера!
 
-### 2. Управление службой
-Вы можете вручную управлять состоянием демона Hysteria 2:
+### 2. Управление службой и обновление
 ```bash
-kvas-hysteria start    # Запустить прокси
-kvas-hysteria stop     # Остановить прокси
-kvas-hysteria restart  # Перезапустить процесс
-kvas-hysteria status   # Проверить статус службы и мониторинга
-kvas-hysteria log      # Просмотр последних строк журнала работы
+kvas-hysteria update               # Обновление пакета kvas-hysteria до последней стабильной версии
+kvas-hysteria update list          # Просмотр доступных версий (тегов) на GitHub
+kvas-hysteria update 1.2.0         # Установка конкретной версии (или ветки: kvas-hysteria update main)
+kvas-hysteria install              # Скачать/обновить бинарный файл Hysteria 2
+kvas-hysteria start                # Запуск туннеля
+kvas-hysteria stop                 # Остановка
+kvas-hysteria restart              # Перезапуск
+kvas-hysteria status               # Проверить статус службы и мониторинга
+kvas-hysteria log                  # Просмотр последних строк журнала работы
 ```
 
 ### 3. Просмотр статуса

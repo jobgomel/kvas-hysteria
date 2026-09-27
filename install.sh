@@ -33,6 +33,20 @@ echo "=== Установка пакета kvas-hysteria (Hysteria 2) ==="
 # 2. Создание структуры папок
 mkdir -p "${APPS_DIR}/bin" "${APPS_DIR}/etc/conf" "${APPS_DIR}/etc/init.d" "${APPS_DIR}/etc/ndm" "/opt/etc/hysteria"
 
+# Сохраняем существующий env.sh при обновлении
+PRESERVED_ENV=0
+TMP_ENV="/tmp/kvas_env_backup_$$.sh"
+if [ -f "${APPS_DIR}/etc/conf/env.sh" ]; then
+    PRESERVED_ENV=1
+    cp -f "${APPS_DIR}/etc/conf/env.sh" "$TMP_ENV"
+fi
+
+# Проверяем, была ли служба запущена до обновления
+WAS_RUNNING=0
+if [ -f "/var/run/hysteria.pid" ] && kill -0 "$(cat /var/run/hysteria.pid 2>/dev/null)" 2>/dev/null; then
+    WAS_RUNNING=1
+fi
+
 # 3. Установка из локального каталога или загрузка из GitHub
 if [ -d "$DIR/src" ]; then
     echo "Установка компонентов из локального каталога..."
@@ -75,8 +89,16 @@ else
         fi
     fi
 
+    # Если по тегу архив не найден, пробуем загрузить ветку (например: main или dev)
     if [ ! -s "$TMP_ZIP" ]; then
-        echo "Ошибка: Не удалось скачать релиз '${TARGET_TAG}' (${ARCHIVE_URL})."
+        BRANCH_URL="https://github.com/${REPO}/archive/refs/heads/${TARGET_TAG}.zip"
+        if curl -sL -f -o "$TMP_ZIP" "$BRANCH_URL" 2>/dev/null; then
+            ARCHIVE_URL="$BRANCH_URL"
+        fi
+    fi
+
+    if [ ! -s "$TMP_ZIP" ]; then
+        echo "Ошибка: Не удалось скачать релиз/ветку '${TARGET_TAG}' (${ARCHIVE_URL})."
         echo "Для просмотра доступных версий выполните команду: install.sh list"
         rm -rf "$TMP_DIR"
         exit 1
@@ -97,6 +119,13 @@ else
     rm -rf "$TMP_DIR"
 fi
 
+# Восстанавливаем пользовательский env.sh, если он существовал
+if [ "$PRESERVED_ENV" -eq 1 ] && [ -f "$TMP_ENV" ]; then
+    echo "Восстановление пользовательских настроек из предыдущей установки..."
+    cp -f "$TMP_ENV" "${APPS_DIR}/etc/conf/env.sh"
+    rm -f "$TMP_ENV"
+fi
+
 # 4. Назначение прав и создание системного симлинка
 chmod +x "${APPS_DIR}/bin/manager.sh"
 chmod +x "${APPS_DIR}/etc/init.d/S99hysteria"
@@ -109,5 +138,11 @@ if [ ! -f "${APPS_DIR}/bin/hysteria" ]; then
     /opt/bin/kvas-hysteria install
 else
     ln -sf "${APPS_DIR}/bin/hysteria" /opt/bin/hysteria
+fi
+
+if [ "$WAS_RUNNING" -eq 1 ] && [ -f "/opt/etc/init.d/S99hysteria" ]; then
+    echo "Перезапуск службы Hysteria после обновления пакета..."
+    /opt/etc/init.d/S99hysteria restart
+else
     /opt/bin/kvas-hysteria
 fi

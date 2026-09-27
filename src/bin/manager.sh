@@ -58,6 +58,7 @@ show_status() {
     fi
     echo "----------------------------------------"
     echo "Использование:"
+    echo "  ${APP_NAME} update [версия]  - Обновить пакет kvas-hysteria (latest/версия/ветка)"
     echo "  ${APP_NAME} install          - Скачать/обновить бинарный файл Hysteria"
     echo "  ${APP_NAME} uninstall        - Полное удаление пакета и интеграции"
     echo -e "  ${APP_NAME} add [\"link\"]     - Импорт ссылки (без аргументов запросит интерактивный ввод)"
@@ -299,6 +300,41 @@ uninstall_packet() {
     echo -e "${GREEN}Пакет kvas-hysteria успешно удален.${NC}"
 }
 
+update_packet() {
+    TARGET="$1"
+
+    # Если запрошено обновление бинарника Hysteria
+    if [ "$TARGET" = "hysteria" ] || [ "$TARGET" = "bin" ]; then
+        install_hysteria
+        return $?
+    fi
+
+    echo "=== Обновление пакета kvas-hysteria ==="
+    INSTALL_URL="https://raw.githubusercontent.com/jobgomel/kvas-hysteria/main/install.sh"
+    TMP_INSTALLER="/tmp/kvas_install_$$.sh"
+
+    echo "Загрузка актуального скрипта установки с GitHub..."
+    if ! curl -sL -f -o "$TMP_INSTALLER" "$INSTALL_URL" 2>/dev/null; then
+        echo -e "${RED}Ошибка: Не удалось скачать скрипт установки с ${INSTALL_URL}${NC}"
+        echo "Проверьте доступность интернета."
+        rm -f "$TMP_INSTALLER"
+        return 1
+    fi
+
+    chmod +x "$TMP_INSTALLER"
+
+    echo "Запуск обновления..."
+    if [ -n "$TARGET" ]; then
+        sh "$TMP_INSTALLER" "$TARGET"
+    else
+        sh "$TMP_INSTALLER"
+    fi
+    RET=$?
+
+    rm -f "$TMP_INSTALLER"
+    return "$RET"
+}
+
 show_log() {
     if [ -f "$LOGFILE" ]; then
         echo "=== Журнал $LOGFILE (последние 40 строк) ==="
@@ -309,6 +345,7 @@ show_log() {
 }
 
 case "$1" in
+    update|upgrade) update_packet "$2" ;;
     install)    install_hysteria ;;
     uninstall)  uninstall_packet ;;
     add)        add_config "$2" ;;
