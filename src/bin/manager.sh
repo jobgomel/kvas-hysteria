@@ -4,14 +4,32 @@
 APP_NAME="kvas-hysteria"
 APP_BASE="/opt/apps/${APP_NAME}"
 ENV_CONFIG="${APP_BASE}/etc/conf/env.sh" # <-- Путь к общему конфигу переменных
+VERSION_FILE="${APP_BASE}/version"
+
+# Определение текущей версии пакета
+APP_VER="1.2.0"
+if [ -f "$VERSION_FILE" ]; then
+    APP_VER=$(cat "$VERSION_FILE" 2>/dev/null | tr -d '\r\n')
+elif [ -f "$(dirname "$0")/../version" ]; then
+    APP_VER=$(cat "$(dirname "$0")/../version" 2>/dev/null | tr -d '\r\n')
+fi
 
 # Импортируем глобальные переменные проекта
 if [ -f "$ENV_CONFIG" ]; then
     . "$ENV_CONFIG"
+elif [ "$1" = "-v" ] || [ "$1" = "--version" ] || [ "$1" = "-V" ] || [ "$1" = "version" ]; then
+    : # Разрешаем вывод версии даже без основного файла конфигурации окружения
 else
     echo "Критическая ошибка: Файл конфигурации среды $ENV_CONFIG не найден!"
     exit 1
 fi
+
+# Цвета по умолчанию (если env.sh не был загружен)
+RED=${RED:-'\033[0;31m'}
+GREEN=${GREEN:-'\033[0;32m'}
+YELLOW=${YELLOW:-'\033[0;33m'}
+BLUE=${BLUE:-'\033[0;34m'}
+NC=${NC:-'\033[0m'}
 
 # Пути к компонентам приложения (уже используют APP_BASE)
 BIN_PATH="${APP_BASE}/bin/hysteria"
@@ -30,7 +48,7 @@ WATCHDOG_PID="/var/run/hysteria-watchdog.pid"
 LOGFILE="/var/log/hysteria.log"
 
 show_status() {
-    echo "=== Менеджер Kvas-Hysteria ==="
+    echo "=== Менеджер Kvas-Hysteria (v${APP_VER}) ==="
     if [ -f "$BIN_PATH" ]; then
         VERSION=$($BIN_PATH -v 2>/dev/null | head -n 1)
         echo -e "Статус: ${GREEN}Установлен${NC} ($VERSION)"
@@ -61,6 +79,7 @@ show_status() {
     echo "  ${APP_NAME} update [версия]  - Обновить пакет kvas-hysteria (latest/версия/ветка)"
     echo "  ${APP_NAME} install          - Скачать/обновить бинарный файл Hysteria"
     echo "  ${APP_NAME} uninstall        - Полное удаление пакета и интеграции"
+    echo "  ${APP_NAME} -v | --version   - Показать текущую версию пакета"
     echo -e "  ${APP_NAME} add [\"link\"]     - Импорт ссылки (без аргументов запросит интерактивный ввод)"
     echo "  ${APP_NAME} test             - Экспресс-тест проксирования туннеля"
     echo "  ${APP_NAME} log              - Просмотр последних строк журнала"
@@ -335,6 +354,14 @@ update_packet() {
     return "$RET"
 }
 
+show_version() {
+    echo "kvas-hysteria version ${APP_VER}"
+    if [ -f "$BIN_PATH" ]; then
+        BIN_VER=$($BIN_PATH -v 2>/dev/null | head -n 1)
+        [ -n "$BIN_VER" ] && echo "$BIN_VER"
+    fi
+}
+
 show_log() {
     if [ -f "$LOGFILE" ]; then
         echo "=== Журнал $LOGFILE (последние 40 строк) ==="
@@ -345,6 +372,7 @@ show_log() {
 }
 
 case "$1" in
+    -v|--version|-V|version) show_version ;;
     update|upgrade) update_packet "$2" ;;
     install)    install_hysteria ;;
     uninstall)  uninstall_packet ;;

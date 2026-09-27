@@ -70,6 +70,7 @@ kvas-hysteria stop                 # Остановка
 kvas-hysteria restart              # Перезапуск
 kvas-hysteria status               # Проверить статус службы и мониторинга
 kvas-hysteria log                  # Просмотр последних строк журнала работы
+kvas-hysteria -v                   # Просмотр версии пакета (-v, --version, version)
 ```
 
 ### 3. Просмотр статуса
