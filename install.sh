@@ -51,6 +51,10 @@ fi
 if [ -d "$DIR/src" ]; then
     echo "Установка компонентов из локального каталога..."
     cp -rf "$DIR/src/"* "${APPS_DIR}/"
+    if [ -d "$DIR/.git" ]; then
+        GIT_VER=$(git -C "$DIR" describe --tags --always 2>/dev/null)
+        [ -n "$GIT_VER" ] && echo "$GIT_VER" > "${APPS_DIR}/version"
+    fi
 else
     # Определение версии для загрузки
     if [ -z "$TARGET_VER" ] || [ "$TARGET_VER" = "latest" ]; then
@@ -115,6 +119,8 @@ else
         rm -rf "$TMP_DIR"
         exit 1
     fi
+
+    echo "$TARGET_TAG" > "${APPS_DIR}/version"
 
     rm -rf "$TMP_DIR"
 fi
