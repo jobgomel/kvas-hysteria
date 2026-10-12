@@ -1,6 +1,7 @@
 #!/bin/sh
 
 # Изолированные базовые пути приложения
+REPO="jobgomel/kvas-hysteria"
 APP_NAME="kvas-hysteria"
 APP_BASE="/opt/apps/${APP_NAME}"
 ENV_CONFIG="${APP_BASE}/etc/conf/env.sh" # <-- Путь к общему конфигу переменных
@@ -278,31 +279,35 @@ EOC
     sleep 2
 
     # === ИНТЕГРАЦИЯ С KEENETIC RCI API ===
-    echo "Интеграция с KeeneticOS API..."
-    curl -s -d '[{"interface": { "name": "'${KEENETIC_PROXY_NAME}'","no": true }}]' "localhost:79/rci/" > /dev/null 2>&1
+    IFACE_INFO=$(curl -s "localhost:79/rci/show/interface/${KEENETIC_PROXY_NAME}" 2>/dev/null)
+    if echo "$IFACE_INFO" | grep -q "\"id\": \"${KEENETIC_PROXY_NAME}\""; then
+        echo -e "${GREEN}Интерфейс '${KEENETIC_PROXY_DESC}' (${KEENETIC_PROXY_NAME}) уже существует в KeeneticOS (создание пропущено, маршруты сохранены).${NC}"
+        # Убеждаемся, что интерфейс включен (up)
+        curl -s -d '[{"interface": {"name": "'${KEENETIC_PROXY_NAME}'", "up": true}}]' "localhost:79/rci/" > /dev/null 2>&1
+    else
+        echo "Интеграция с KeeneticOS API (регистрация интерфейса)..."
+        # В JSON подставляем порт из env.sh (PROXY_LOCAL_PORT_SOCKS вместо старого PROXY_LOCAL_PORT)
+        API_DATA='[{
+            "interface": {
+                "name": "'${KEENETIC_PROXY_NAME}'",
+                "description": "'${KEENETIC_PROXY_DESC}'",
+                "proxy": {
+                    "protocol": { "proto": "'${PROXY_PROTO}'" },
+                    "upstream": { "host": "'${PROXY_LOCAL_IP}'", "port": "'${PROXY_LOCAL_PORT_SOCKS}'" },
+                    "socks5-udp": true
+                }
+            },
+            "system": { "configuration": { "save": true } }
+        }]'
 
-    # В JSON подставляем порт из env.sh (PROXY_LOCAL_PORT_SOCKS вместо старого PROXY_LOCAL_PORT)
-    API_DATA='[{
-        "interface": {
-            "name": "'${KEENETIC_PROXY_NAME}'",
-            "description": "'${KEENETIC_PROXY_DESC}'",
-            "proxy": {
-                "protocol": { "proto": "'${PROXY_PROTO}'" },
-                "upstream": { "host": "'${PROXY_LOCAL_IP}'", "port": "'${PROXY_LOCAL_PORT_SOCKS}'" },
-                "socks5-udp": true
-            }
-        },
-        "system": { "configuration": { "save": true } }
-    }]'
+        curl -s -d "${API_DATA}" "localhost:79/rci/" > /dev/null 2>&1
+        curl -s -d '[{"interface": {"name": "'${KEENETIC_PROXY_NAME}'", "up": true}}]' "localhost:79/rci/" > /dev/null 2>&1
 
-    curl -s -d "${API_DATA}" "localhost:79/rci/" > /dev/null 2>&1
-    curl -s -d '[{"interface": {"name": "'${KEENETIC_PROXY_NAME}'", "up": true}}]' "localhost:79/rci/" > /dev/null 2>&1
-
-    echo -e "${GREEN}Интерфейс '${KEENETIC_PROXY_DESC}' успешно обновлен в KeeneticOS!${NC}"
-    echo -e "${YELLOW}Чтобы изменить VPN интерфейс kvas'а, выполните команду:${NC}"
-    echo -e "  ${BLUE}kvas vpn set${NC}"
-
-    echo ""
+        echo -e "${GREEN}Интерфейс '${KEENETIC_PROXY_DESC}' (${KEENETIC_PROXY_NAME}) успешно зарегистрирован в KeeneticOS!${NC}"
+        echo -e "${YELLOW}Чтобы переключить маршруты Kvas на этот туннель, выполните:${NC}"
+        echo -e "  ${BLUE}kvas vpn set${NC}"
+        echo ""
+    fi
     run_test
 }
 
@@ -321,6 +326,15 @@ uninstall_packet() {
 
 update_packet() {
     TARGET="$1"
+    FORCE=0
+
+    # Проверка флагов принудительного обновления (--force / -f)
+    if [ "$TARGET" = "-f" ] || [ "$TARGET" = "--force" ]; then
+        FORCE=1
+        TARGET=""
+    elif [ "$2" = "-f" ] || [ "$2" = "--force" ]; then
+        FORCE=1
+    fi
 
     # Если запрошено обновление бинарника Hysteria
     if [ "$TARGET" = "hysteria" ] || [ "$TARGET" = "bin" ]; then
@@ -329,7 +343,40 @@ update_packet() {
     fi
 
     echo "=== Обновление пакета kvas-hysteria ==="
-    INSTALL_URL="https://raw.githubusercontent.com/jobgomel/kvas-hysteria/main/install.sh"
+
+    # Проверка актуальности версии перед обновлением
+    if [ "$FORCE" -eq 0 ]; then
+        if [ -z "$TARGET" ] || [ "$TARGET" = "latest" ]; then
+            echo "Проверка наличия обновлений на GitHub..."
+            LATEST_TAG=$(curl -sI "https://github.com/${REPO}/releases/latest" 2>/dev/null | \
+                        tr -d '\r' | sed -n -E 's/^[Ll]ocation:.*\/tag\/([^[:space:]]+).*/\1/p' | head -n 1)
+
+            if [ -z "$LATEST_TAG" ]; then
+                LATEST_TAG=$(curl -sL "https://api.github.com/repos/${REPO}/releases/latest" 2>/dev/null | \
+                            grep -oE '"tag_name": *"[^"]+"' | head -n 1 | cut -d'"' -f4)
+            fi
+
+            CURRENT_CLEAN="${APP_VER#v}"
+            LATEST_CLEAN="${LATEST_TAG#v}"
+
+            if [ -n "$LATEST_CLEAN" ] && [ "$CURRENT_CLEAN" = "$LATEST_CLEAN" ]; then
+                echo -e "${GREEN}У вас уже установлена актуальная версия: ${APP_VER} (latest).${NC}"
+                echo "Обновление не требуется."
+                echo -e "Для принудительной переустановки выполните: ${BLUE}kvas-hysteria update --force${NC}"
+                return 0
+            fi
+
+            if [ -n "$LATEST_TAG" ]; then
+                echo -e "Доступно обновление: ${YELLOW}${APP_VER}${NC} -> ${GREEN}${LATEST_TAG}${NC}"
+            fi
+        elif [ "${APP_VER#v}" = "${TARGET#v}" ]; then
+            echo -e "${GREEN}Версия ${APP_VER} уже установлена.${NC}"
+            echo -e "Для принудительной переустановки выполните: ${BLUE}kvas-hysteria update ${TARGET} --force${NC}"
+            return 0
+        fi
+    fi
+
+    INSTALL_URL="https://raw.githubusercontent.com/${REPO}/main/install.sh"
     TMP_INSTALLER="/tmp/kvas_install_$$.sh"
 
     echo "Загрузка актуального скрипта установки с GitHub..."
@@ -342,12 +389,12 @@ update_packet() {
 
     chmod +x "$TMP_INSTALLER"
 
-    echo "Запуск обновления..."
-    if [ -n "$TARGET" ]; then
-        sh "$TMP_INSTALLER" "$TARGET"
-    else
-        sh "$TMP_INSTALLER"
-    fi
+    INSTALL_TARGET="${TARGET:-latest}"
+    ARGS="$INSTALL_TARGET"
+    [ "$FORCE" -eq 1 ] && ARGS="$ARGS --force"
+
+    # shellcheck disable=SC2086
+    FORCE="$FORCE" sh "$TMP_INSTALLER" $ARGS
     RET=$?
 
     rm -f "$TMP_INSTALLER"
@@ -373,7 +420,7 @@ show_log() {
 
 case "$1" in
     -v|--version|-V|version) show_version ;;
-    update|upgrade) update_packet "$2" ;;
+    update|upgrade) update_packet "$2" "$3" ;;
     install)    install_hysteria ;;
     uninstall)  uninstall_packet ;;
     add)        add_config "$2" ;;
