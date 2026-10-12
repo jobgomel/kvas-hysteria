@@ -5,8 +5,15 @@ REPO="jobgomel/kvas-hysteria"
 APPS_DIR="/opt/apps/kvas-hysteria"
 TMP_DIR="/tmp/kvas-hysteria-install-$$"
 TMP_ZIP="${TMP_DIR}/package.zip"
-DIR="$(cd "$(dirname "$0")" && pwd)"
-TARGET_VER="$1"
+FORCE="${FORCE:-0}"
+TARGET_VER=""
+for arg in "$@"; do
+    case "$arg" in
+        --force|-f) FORCE=1 ;;
+        list|-l|--list) TARGET_VER="list" ;;
+        *) [ -z "$TARGET_VER" ] && TARGET_VER="$arg" ;;
+    esac
+done
 
 # 1. Вывод всех доступных тегов через GitHub API
 list_versions() {
@@ -76,6 +83,18 @@ else
     else
         TARGET_TAG="$TARGET_VER"
         echo "Запрошена установка версии: ${TARGET_TAG}"
+    fi
+
+    # Проверка текущей установленной версии
+    CURRENT_VER=""
+    if [ -f "${APPS_DIR}/version" ]; then
+        CURRENT_VER=$(cat "${APPS_DIR}/version" 2>/dev/null | tr -d '\r\n')
+    fi
+
+    if [ "$FORCE" -eq 0 ] && [ -n "$CURRENT_VER" ] && [ "${CURRENT_VER#v}" = "${TARGET_TAG#v}" ]; then
+        echo "У вас уже установлена актуальная версия: ${CURRENT_VER}."
+        echo "Обновление не требуется. Для принудительной переустановки укажите флаг --force."
+        exit 0
     fi
 
     ARCHIVE_URL="https://github.com/${REPO}/archive/refs/tags/${TARGET_TAG}.zip"
