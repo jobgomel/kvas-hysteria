@@ -18,7 +18,7 @@ done
 # 1. Вывод всех доступных тегов через GitHub API
 list_versions() {
     echo "Запрос списка версий из репозитория ${REPO}..."
-    TAGS=$(curl -sL "https://api.github.com/repos/${REPO}/tags" | \
+    TAGS=$(curl -4 -sL --connect-timeout 10 "https://api.github.com/repos/${REPO}/tags" | \
            grep -oE '"name": *"[^"]+"' | cut -d'"' -f4)
 
     if [ -z "$TAGS" ]; then
@@ -66,12 +66,12 @@ else
     # Определение версии для загрузки
     if [ -z "$TARGET_VER" ] || [ "$TARGET_VER" = "latest" ]; then
         echo "Поиск последнего релиза (latest)..."
-        TARGET_TAG=$(curl -sI "https://github.com/${REPO}/releases/latest" 2>/dev/null | \
+        TARGET_TAG=$(curl -4 -sI --connect-timeout 10 "https://github.com/${REPO}/releases/latest" 2>/dev/null | \
                     tr -d '\r' | sed -n -E 's/^[Ll]ocation:.*\/tag\/([^[:space:]]+).*/\1/p' | head -n 1)
 
         if [ -z "$TARGET_TAG" ]; then
             # Резервный запрос через API, если редирект не сработал
-            TARGET_TAG=$(curl -sL "https://api.github.com/repos/${REPO}/releases/latest" 2>/dev/null | \
+            TARGET_TAG=$(curl -4 -sL --connect-timeout 10 "https://api.github.com/repos/${REPO}/releases/latest" 2>/dev/null | \
                         grep -oE '"tag_name": *"[^"]+"' | head -n 1 | cut -d'"' -f4)
         fi
 
@@ -101,11 +101,11 @@ else
     mkdir -p "$TMP_DIR"
 
     # Загрузка архива (с проверкой наличия префикса 'v')
-    if ! curl -sL -f -o "$TMP_ZIP" "$ARCHIVE_URL" 2>/dev/null; then
+    if ! curl -4 -sL -f --connect-timeout 20 -o "$TMP_ZIP" "$ARCHIVE_URL" 2>/dev/null; then
         if [ "${TARGET_TAG#v}" = "$TARGET_TAG" ]; then
             ALT_TAG="v${TARGET_TAG}"
             ALT_URL="https://github.com/${REPO}/archive/refs/tags/${ALT_TAG}.zip"
-            if curl -sL -f -o "$TMP_ZIP" "$ALT_URL" 2>/dev/null; then
+            if curl -4 -sL -f --connect-timeout 20 -o "$TMP_ZIP" "$ALT_URL" 2>/dev/null; then
                 TARGET_TAG="$ALT_TAG"
                 ARCHIVE_URL="$ALT_URL"
             fi
@@ -115,7 +115,7 @@ else
     # Если по тегу архив не найден, пробуем загрузить ветку (например: main или dev)
     if [ ! -s "$TMP_ZIP" ]; then
         BRANCH_URL="https://github.com/${REPO}/archive/refs/heads/${TARGET_TAG}.zip"
-        if curl -sL -f -o "$TMP_ZIP" "$BRANCH_URL" 2>/dev/null; then
+        if curl -4 -sL -f --connect-timeout 20 -o "$TMP_ZIP" "$BRANCH_URL" 2>/dev/null; then
             ARCHIVE_URL="$BRANCH_URL"
         fi
     fi

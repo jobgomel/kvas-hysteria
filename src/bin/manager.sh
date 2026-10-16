@@ -117,7 +117,7 @@ install_hysteria() {
     fi
 
     echo "Запрос актуальной версии Hysteria с GitHub..."
-    LATEST_VERSION=$(curl -sI https://github.com/apernet/hysteria/releases/latest | grep -i 'location:' | sed -E 's/.*\/tag\/([^[:space:]\r\n]+).*/\1/')
+    LATEST_VERSION=$(curl -4 -sI --connect-timeout 10 https://github.com/apernet/hysteria/releases/latest | grep -i 'location:' | sed -E 's/.*\/tag\/([^[:space:]\r\n]+).*/\1/')
 
     if [ -z "$LATEST_VERSION" ] || echo "$LATEST_VERSION" | grep -q "{" ; then
         echo -e "${YELLOW}Предупреждение: Переход на базовый релиз v2.6.0${NC}"
@@ -129,7 +129,7 @@ install_hysteria() {
     rm -f "$TMP_BIN_PATH"
 
     echo -e "Скачиваем ${BLUE}Hysteria $LATEST_VERSION${NC} для ${YELLOW}$BINARY_ARCH${NC} во временный файл..."
-    curl -L -o "$TMP_BIN_PATH" "https://github.com/apernet/hysteria/releases/download/${LATEST_VERSION}/hysteria-linux-${BINARY_ARCH}"
+    curl -4 -L --connect-timeout 20 -o "$TMP_BIN_PATH" "https://github.com/apernet/hysteria/releases/download/${LATEST_VERSION}/hysteria-linux-${BINARY_ARCH}"
 
     if [ ! -s "$TMP_BIN_PATH" ]; then
         echo -e "${RED}Ошибка записи временного файла. Возможно, закончилось место.${NC}"
@@ -147,7 +147,7 @@ install_hysteria() {
         if [ "$BINARY_ARCH" = "mipsle" ] || [ "$BINARY_ARCH" = "mips" ]; then
             echo -e "${RED}Стандартная сборка не запустилась. Пробую softfloat-вариант hysteria...${NC}"
             rm -f "$TMP_BIN_PATH"
-            curl -L -o "$TMP_BIN_PATH" "https://github.com/apernet/hysteria/releases/download/${LATEST_VERSION}/hysteria-linux-${BINARY_ARCH}-sf"
+            curl -4 -L --connect-timeout 20 -o "$TMP_BIN_PATH" "https://github.com/apernet/hysteria/releases/download/${LATEST_VERSION}/hysteria-linux-${BINARY_ARCH}-sf"
         fi
 
         chmod +x "$TMP_BIN_PATH"
@@ -348,11 +348,11 @@ update_packet() {
     if [ "$FORCE" -eq 0 ]; then
         if [ -z "$TARGET" ] || [ "$TARGET" = "latest" ]; then
             echo "Проверка наличия обновлений на GitHub..."
-            LATEST_TAG=$(curl -sI "https://github.com/${REPO}/releases/latest" 2>/dev/null | \
+            LATEST_TAG=$(curl -4 -sI --connect-timeout 10 "https://github.com/${REPO}/releases/latest" 2>/dev/null | \
                         tr -d '\r' | sed -n -E 's/^[Ll]ocation:.*\/tag\/([^[:space:]]+).*/\1/p' | head -n 1)
 
             if [ -z "$LATEST_TAG" ]; then
-                LATEST_TAG=$(curl -sL "https://api.github.com/repos/${REPO}/releases/latest" 2>/dev/null | \
+                LATEST_TAG=$(curl -4 -sL --connect-timeout 10 "https://api.github.com/repos/${REPO}/releases/latest" 2>/dev/null | \
                             grep -oE '"tag_name": *"[^"]+"' | head -n 1 | cut -d'"' -f4)
             fi
 
@@ -377,10 +377,24 @@ update_packet() {
     fi
 
     INSTALL_URL="https://raw.githubusercontent.com/${REPO}/main/install.sh"
+    API_URL="https://api.github.com/repos/${REPO}/contents/install.sh"
     TMP_INSTALLER="/tmp/kvas_install_$$.sh"
 
     echo "Загрузка актуального скрипта установки с GitHub..."
-    if ! curl -sL -f -o "$TMP_INSTALLER" "$INSTALL_URL" 2>/dev/null; then
+    DOWNLOADED=0
+
+    # 1. Прямая загрузка через IPv4 (защита от неработающего IPv6 на роутере)
+    if curl -4 -sL -f --connect-timeout 10 -o "$TMP_INSTALLER" "$INSTALL_URL" 2>/dev/null; then
+        DOWNLOADED=1
+    # 2. Резервный источник через GitHub API (raw-заголовок)
+    elif curl -4 -sL -f --connect-timeout 10 -H "Accept: application/vnd.github.raw" -o "$TMP_INSTALLER" "$API_URL" 2>/dev/null; then
+        DOWNLOADED=1
+    # 3. Резерв через локальный туннель socks5 (если служба активна)
+    elif [ -n "${PROXY_LOCAL_PORT_SOCKS}" ] && curl -sL -f --connect-timeout 10 -x "socks5h://${PROXY_LOCAL_IP:-127.0.0.1}:${PROXY_LOCAL_PORT_SOCKS:-10808}" -o "$TMP_INSTALLER" "$INSTALL_URL" 2>/dev/null; then
+        DOWNLOADED=1
+    fi
+
+    if [ "$DOWNLOADED" -eq 0 ] || [ ! -s "$TMP_INSTALLER" ]; then
         echo -e "${RED}Ошибка: Не удалось скачать скрипт установки с ${INSTALL_URL}${NC}"
         echo "Проверьте доступность интернета."
         rm -f "$TMP_INSTALLER"
