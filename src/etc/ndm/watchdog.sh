@@ -1,14 +1,19 @@
 #!/bin/sh
 
 # shellcheck source=/dev/null
-[ -f /opt/apps/kvas-hysteria/etc/conf/env.sh ] && . /opt/apps/kvas-hysteria/etc/conf/env.sh
+if [ -f /opt/apps/kvas-hysteria/etc/conf/env.sh ]; then
+    . /opt/apps/kvas-hysteria/etc/conf/env.sh
+elif [ -f "$(dirname "$0")/../conf/env.sh" ]; then
+    . "$(dirname "$0")/../conf/env.sh"
+fi
 
 PIDFILE="/var/run/hysteria.pid"
 ACTIVE_FLAG="/var/run/hysteria.active"
 LOGFILE="/var/log/hysteria.log"
 INIT_SCRIPT="/opt/etc/init.d/S99hysteria"
-CHECK_URL="https://api.ipify.org"
-INTERVAL=30
+TEST_SCRIPT="/opt/apps/kvas-hysteria/etc/ndm/test_connection.sh"
+[ ! -f "$TEST_SCRIPT" ] && [ -f "$(dirname "$0")/test_connection.sh" ] && TEST_SCRIPT="$(dirname "$0")/test_connection.sh"
+INTERVAL="${WATCHDOG_INTERVAL:-30}"
 
 log_msg() {
     echo "$(date '+%Y-%m-%d %H:%M:%S') [watchdog] $1" >> "$LOGFILE"
@@ -19,7 +24,11 @@ check_internet() {
 }
 
 check_proxy() {
-    curl -s -m 5 --connect-timeout 4 -x "socks5h://${PROXY_LOCAL_IP:-127.0.0.1}:${PROXY_LOCAL_PORT_SOCKS:-10808}" "$CHECK_URL" >/dev/null 2>&1
+    if [ -f "$TEST_SCRIPT" ]; then
+        sh "$TEST_SCRIPT" -q
+    else
+        curl -f -s -m 5 --connect-timeout 4 -x "socks5h://${PROXY_LOCAL_IP:-127.0.0.1}:${PROXY_LOCAL_PORT_SOCKS:-10808}" "https://checkip.amazonaws.com" >/dev/null 2>&1
+    fi
 }
 
 log_msg "Служба мониторинга туннеля запущена."
