@@ -31,7 +31,7 @@ curl -sL https://raw.githubusercontent.com/jobgomel/kvas-hysteria/main/install.s
 ### Вариант 2. Из архива (офлайн / распаковка на роутере)
 1. Распакуйте архив в любую временную папку на роутере:
    ```bash
-   unzip kvas-hysteria-1.2.0.zip
+   tar -xzf kvas-hysteria-1.2.0.tar.gz
    cd kvas-hysteria-1.2.0
    chmod +x install.sh
    ./install.sh
