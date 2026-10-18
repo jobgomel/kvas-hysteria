@@ -145,50 +145,15 @@ else
     rm -rf "$TMP_DIR"
 fi
 
-# Синхронизируем пользовательские настройки из предыдущей установки с новым env.sh
-if [ "$PRESERVED_ENV" -eq 1 ] && [ -f "$TMP_ENV" ]; then
-    echo "Синхронизация пользовательских настроек (env.sh)..."
-    TARGET_ENV="${APPS_DIR}/etc/conf/env.sh"
-    if [ -f "$TARGET_ENV" ]; then
-        while IFS= read -r line || [ -n "$line" ]; do
-            case "$line" in
-                \#*|"") continue ;;
-                [A-Za-z_][A-Za-z0-9_]*=*)
-                    key="${line%%=*}"
-                    key=$(echo "$key" | tr -d " \t")
-                    val="${line#*=}"
-                    if grep -q "^[[:space:]]*${key}=" "$TARGET_ENV"; then
-                        esc_val=$(echo "$val" | sed -e "s/[|&]/\\\\&/g")
-                        sed -i "s|^[[:space:]]*${key}=.*|${key}=${esc_val}|" "$TARGET_ENV"
-                    else
-                        echo "${line}" >> "$TARGET_ENV"
-                    fi
-                    ;;
-            esac
-        done < "$TMP_ENV"
-    else
-        cp -f "$TMP_ENV" "$TARGET_ENV"
-    fi
-    rm -f "$TMP_ENV"
-fi
-
-# 4. Назначение прав и создание системного симлинка
-chmod +x "${APPS_DIR}/bin/manager.sh"
-chmod +x "${APPS_DIR}/etc/init.d/S99hysteria"
-chmod +x "${APPS_DIR}/etc/ndm/"*.sh 2>/dev/null || true
-
-ln -sf "${APPS_DIR}/bin/manager.sh" /opt/bin/kvas-hysteria
-
-# 5. Установка или обновление бинарника Hysteria
-if [ ! -f "${APPS_DIR}/bin/hysteria" ]; then
-    /opt/bin/kvas-hysteria install
+# 4. Передача управления скрипту пост-установки пакета
+if [ -f "${APPS_DIR}/bin/setup.sh" ]; then
+    chmod +x "${APPS_DIR}/bin/setup.sh"
+    sh "${APPS_DIR}/bin/setup.sh" \
+        --preserved-env "$PRESERVED_ENV" \
+        --env-backup "$TMP_ENV" \
+        --was-running "$WAS_RUNNING"
 else
-    ln -sf "${APPS_DIR}/bin/hysteria" /opt/bin/hysteria
-fi
-
-if [ "$WAS_RUNNING" -eq 1 ] && [ -f "/opt/etc/init.d/S99hysteria" ]; then
-    echo "Перезапуск службы Hysteria после обновления пакета..."
-    /opt/etc/init.d/S99hysteria restart
-else
-    /opt/bin/kvas-hysteria
+    echo "Предупреждение: ${APPS_DIR}/bin/setup.sh не найден."
+    chmod +x "${APPS_DIR}/bin/manager.sh" 2>/dev/null || true
+    ln -sf "${APPS_DIR}/bin/manager.sh" /opt/bin/kvas-hysteria 2>/dev/null || true
 fi
