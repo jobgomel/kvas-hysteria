@@ -242,9 +242,13 @@ add_config() {
 
     echo "Разбираем конфигурацию пира..."
     URL=$(echo "$URL" | tr -d '[:space:]')
-    MAIN_PART=$(echo "$URL" | sed -E 's|h2://||;s|hysteria2://||;s|\?.*||')
+    MAIN_PART=$(echo "$URL" | sed -E 's|h2://||;s|hysteria2://||;s|\?.*||;s|#.*||')
+    if ! echo "$MAIN_PART" | grep -q '@'; then
+        echo -e "${RED}Ошибка парсинга ссылки (отсутствует разделитель '@').${NC}"
+        exit 1
+    fi
     AUTH=$(echo "$MAIN_PART" | cut -d'@' -f1)
-    SERVER=$(echo "$MAIN_PART" | cut -d'@' -f2)
+    SERVER=$(echo "$MAIN_PART" | cut -d'@' -f2 | sed 's|/*$||')
     SNI=$(echo "$URL" | sed -n -E 's/.*([?&])sni=([^&#]*).*/\2/p')
     FP=$(echo "$URL" | sed -n -E 's/.*([?&])fp=([^&#]*).*/\2/p')
     OBFS_TYPE=$(echo "$URL" | sed -n -E 's/.*([?&])obfs=([^&#]*).*/\2/p')
