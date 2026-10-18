@@ -213,6 +213,10 @@ install_hysteria() {
 add_config() {
     URL="$1"
 
+    # Безопасные права доступа (0600) при создании конфигурации с паролями/ключами
+    OLD_UMASK=$(umask)
+    umask 077
+
     # 1. Если аргумент не передан или передан '-' — читаем через read / stdin
     # Это полностью обходит 512-байтный лимит интерактивной строки ash
     if [ -z "$URL" ] || [ "$URL" = "-" ]; then
@@ -252,6 +256,10 @@ add_config() {
         exit 1
     fi
 
+    mkdir -p "$(dirname "$FINAL_CONFIG_PATH")"
+    touch "$FINAL_CONFIG_PATH"
+    chmod 600 "$FINAL_CONFIG_PATH"
+
     # Генерируем верхнюю (динамическую) часть конфига
     cat << EOC > "$FINAL_CONFIG_PATH"
 server: $SERVER
@@ -279,6 +287,8 @@ EOC
         -e "s|@PROXY_LOCAL_PORT_HTTP|${PROXY_LOCAL_PORT_HTTP}|g" \
         "$TEMPLATE_CONFIG" >> "$FINAL_CONFIG_PATH"
 
+    chmod 600 "$FINAL_CONFIG_PATH"
+    umask "$OLD_UMASK" 2>/dev/null || true
     echo -e "${GREEN}Конфигурация успешно сгенерирована: $FINAL_CONFIG_PATH${NC}"
 
     echo "Активация службы автозапуска..."
