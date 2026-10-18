@@ -426,7 +426,7 @@ update_packet() {
 
     chmod +x "$TMP_INSTALLER"
 
-    INSTALL_TARGET="${TARGET:-latest}"
+    INSTALL_TARGET="${TARGET:-${LATEST_TAG:-latest}}"
     ARGS="$INSTALL_TARGET"
     [ "$FORCE" -eq 1 ] && ARGS="$ARGS --force"
 

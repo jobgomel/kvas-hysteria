@@ -45,7 +45,8 @@ case "$1" in
             kill "$(cat "$WATCHDOG_PID")" 2>/dev/null
             rm -f "$WATCHDOG_PID"
         fi
-        killall watchdog.sh 2>/dev/null
+        EXTRA_PIDS=$(ps -w 2>/dev/null | grep "[k]vas-hysteria/etc/ndm/watchdog.sh" | awk '{print $1}')
+        [ -n "$EXTRA_PIDS" ] && kill $EXTRA_PIDS 2>/dev/null || true
 
         # 2. Остановка основного демона Hysteria
         if [ -f "$PIDFILE" ]; then

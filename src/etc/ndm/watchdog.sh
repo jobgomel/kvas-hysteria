@@ -36,11 +36,8 @@ check_internet() {
 }
 
 check_proxy() {
-    if [ -f "$TEST_SCRIPT" ]; then
-        sh "$TEST_SCRIPT" -q
-    else
-        curl -f -s -m 5 --connect-timeout 4 -x "socks5h://${PROXY_LOCAL_IP:-127.0.0.1}:${PROXY_LOCAL_PORT_SOCKS:-10808}" "https://checkip.amazonaws.com" >/dev/null 2>&1
-    fi
+    curl -4 -f -s -I -m 5 --connect-timeout 4 -x "socks5h://${PROXY_LOCAL_IP:-127.0.0.1}:${PROXY_LOCAL_PORT_SOCKS:-10808}" "http://cp.cloudflare.com/generate_204" >/dev/null 2>&1 || \
+    curl -4 -f -s -I -m 5 --connect-timeout 4 -x "socks5h://${PROXY_LOCAL_IP:-127.0.0.1}:${PROXY_LOCAL_PORT_SOCKS:-10808}" "http://connectivitycheck.gstatic.com/generate_204" >/dev/null 2>&1
 }
 
 log_msg "Служба мониторинга туннеля запущена."
