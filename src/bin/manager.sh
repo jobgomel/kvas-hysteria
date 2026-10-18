@@ -298,11 +298,11 @@ EOC
     sleep 2
 
     # === ИНТЕГРАЦИЯ С KEENETIC RCI API ===
-    IFACE_INFO=$(curl -s "localhost:79/rci/show/interface/${KEENETIC_PROXY_NAME}" 2>/dev/null)
+    IFACE_INFO=$(curl -4 -s "http://127.0.0.1:79/rci/show/interface/${KEENETIC_PROXY_NAME}" 2>/dev/null)
     if echo "$IFACE_INFO" | grep -q "\"id\": \"${KEENETIC_PROXY_NAME}\""; then
         echo -e "${GREEN}Интерфейс '${KEENETIC_PROXY_DESC}' (${KEENETIC_PROXY_NAME}) уже существует в KeeneticOS (создание пропущено, маршруты сохранены).${NC}"
         # Убеждаемся, что интерфейс включен (up)
-        curl -s -d '[{"interface": {"name": "'${KEENETIC_PROXY_NAME}'", "up": true}}]' "localhost:79/rci/" > /dev/null 2>&1
+        curl -4 -s -d '[{"interface": {"name": "'${KEENETIC_PROXY_NAME}'", "up": true}}]' "http://127.0.0.1:79/rci/" > /dev/null 2>&1
     else
         echo "Интеграция с KeeneticOS API (регистрация интерфейса)..."
         # В JSON подставляем порт из env.sh (PROXY_LOCAL_PORT_SOCKS вместо старого PROXY_LOCAL_PORT)
@@ -319,8 +319,8 @@ EOC
             "system": { "configuration": { "save": true } }
         }]'
 
-        curl -s -d "${API_DATA}" "localhost:79/rci/" > /dev/null 2>&1
-        curl -s -d '[{"interface": {"name": "'${KEENETIC_PROXY_NAME}'", "up": true}}]' "localhost:79/rci/" > /dev/null 2>&1
+        curl -4 -s -d "${API_DATA}" "http://127.0.0.1:79/rci/" > /dev/null 2>&1
+        curl -4 -s -d '[{"interface": {"name": "'${KEENETIC_PROXY_NAME}'", "up": true}}]' "http://127.0.0.1:79/rci/" > /dev/null 2>&1
 
         echo -e "${GREEN}Интерфейс '${KEENETIC_PROXY_DESC}' (${KEENETIC_PROXY_NAME}) успешно зарегистрирован в KeeneticOS!${NC}"
         echo -e "${YELLOW}Чтобы переключить маршруты Kvas на этот туннель, выполните:${NC}"
@@ -335,7 +335,7 @@ uninstall_packet() {
     [ -f "$SYSTEM_INIT_PATH" ] && "$SYSTEM_INIT_PATH" stop
 
     echo "Удаление прокси-интерфейса из KeeneticOS..."
-    curl -s -d '[{"interface": { "name": "'${KEENETIC_PROXY_NAME}'","no": true },"system": {"configuration": {"save": true}}}]' "localhost:79/rci/" > /dev/null 2>&1
+    curl -4 -s -d '[{"interface": { "name": "'${KEENETIC_PROXY_NAME}'","no": true },"system": {"configuration": {"save": true}}}]' "http://127.0.0.1:79/rci/" > /dev/null 2>&1
 
     echo "Удаление симлинков и файлов пакета..."
     rm -f /opt/bin/kvas-hysteria /opt/bin/hysteria "$SYSTEM_INIT_PATH" "$PIDFILE" "$WATCHDOG_PID" /var/run/hysteria.active "$LOGFILE"
