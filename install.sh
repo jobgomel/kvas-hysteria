@@ -145,10 +145,30 @@ else
     rm -rf "$TMP_DIR"
 fi
 
-# Восстанавливаем пользовательский env.sh, если он существовал
+# Синхронизируем пользовательские настройки из предыдущей установки с новым env.sh
 if [ "$PRESERVED_ENV" -eq 1 ] && [ -f "$TMP_ENV" ]; then
-    echo "Восстановление пользовательских настроек из предыдущей установки..."
-    cp -f "$TMP_ENV" "${APPS_DIR}/etc/conf/env.sh"
+    echo "Синхронизация пользовательских настроек (env.sh)..."
+    TARGET_ENV="${APPS_DIR}/etc/conf/env.sh"
+    if [ -f "$TARGET_ENV" ]; then
+        while IFS= read -r line || [ -n "$line" ]; do
+            case "$line" in
+                \#*|"") continue ;;
+                [A-Za-z_][A-Za-z0-9_]*=*)
+                    key="${line%%=*}"
+                    key=$(echo "$key" | tr -d " \t")
+                    val="${line#*=}"
+                    if grep -q "^[[:space:]]*${key}=" "$TARGET_ENV"; then
+                        esc_val=$(echo "$val" | sed -e "s/[|&]/\\\\&/g")
+                        sed -i "s|^[[:space:]]*${key}=.*|${key}=${esc_val}|" "$TARGET_ENV"
+                    else
+                        echo "${line}" >> "$TARGET_ENV"
+                    fi
+                    ;;
+            esac
+        done < "$TMP_ENV"
+    else
+        cp -f "$TMP_ENV" "$TARGET_ENV"
+    fi
     rm -f "$TMP_ENV"
 fi
 

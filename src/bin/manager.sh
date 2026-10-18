@@ -105,14 +105,23 @@ install_hysteria() {
         *armv7*|*armv6*|*arm*)        BINARY_ARCH="arm" ;;
         *mipsel*|*mipsle*)            BINARY_ARCH="mipsle" ;;
         *mips64el*)                   BINARY_ARCH="mipsle" ;;
-        *mips*)                       BINARY_ARCH="mipsle" ;;
+        *mips*)
+            # Проверяем порядок байтов (ELF header: 5-й байт 01 = LSB/little-endian, 02 = MSB/big-endian)
+            ENDIAN_BYTE=$(dd if=/bin/sh bs=1 count=1 skip=5 2>/dev/null | od -b 2>/dev/null | awk 'NR==1 {print $2}')
+            if [ "$ENDIAN_BYTE" = "002" ] || [ "$ENDIAN_BYTE" = "2" ]; then
+                echo -e "${RED}Ошибка: Архитектура MIPS Big-Endian не поддерживается официальными сборками Hysteria.${NC}"
+                exit 1
+            else
+                BINARY_ARCH="mipsle"
+            fi
+            ;;
         *x86_64*|*amd64*)             BINARY_ARCH="amd64" ;;
         *i?86*|*x86*)                 BINARY_ARCH="386" ;;
         *)                            BINARY_ARCH="" ;;
     esac
 
-    if [ -z "$ARCH" ]; then
-        echo -e "${RED}Ошибка: Неподдерживаемая архитектура: $ARCH${NC}"
+    if [ -z "$BINARY_ARCH" ]; then
+        echo -e "${RED}Ошибка: Не удалось определить архитектуру устройства ($ARCH).${NC}"
         exit 1
     fi
 

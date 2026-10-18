@@ -14,9 +14,21 @@ INIT_SCRIPT="/opt/etc/init.d/S99hysteria"
 TEST_SCRIPT="/opt/apps/kvas-hysteria/etc/ndm/test_connection.sh"
 [ ! -f "$TEST_SCRIPT" ] && [ -f "$(dirname "$0")/test_connection.sh" ] && TEST_SCRIPT="$(dirname "$0")/test_connection.sh"
 INTERVAL="${WATCHDOG_INTERVAL:-30}"
+MAX_LOG_SIZE="${MAX_LOG_SIZE:-262144}"
 
 log_msg() {
     echo "$(date '+%Y-%m-%d %H:%M:%S') [watchdog] $1" >> "$LOGFILE"
+}
+
+rotate_log() {
+    if [ -f "$LOGFILE" ]; then
+        _size=$(wc -c < "$LOGFILE" 2>/dev/null || echo 0)
+        if [ "$_size" -gt "$MAX_LOG_SIZE" ]; then
+            tail -n 200 "$LOGFILE" > "${LOGFILE}.tmp" 2>/dev/null && \
+            cat "${LOGFILE}.tmp" > "$LOGFILE" 2>/dev/null && \
+            rm -f "${LOGFILE}.tmp"
+        fi
+    fi
 }
 
 check_internet() {
@@ -37,6 +49,8 @@ while [ -f "$ACTIVE_FLAG" ]; do
     sleep "$INTERVAL"
 
     [ ! -f "$ACTIVE_FLAG" ] && break
+
+    rotate_log
 
     # 1. Проверка аварийного падения процесса Hysteria
     NEED_RESTART=0

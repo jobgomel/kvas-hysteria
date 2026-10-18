@@ -24,7 +24,7 @@ case "$1" in
         if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
             echo "Hysteria уже запущена."
         else
-            $PROG $ARGS > "$LOGFILE" 2>&1 &
+            $PROG $ARGS >> "$LOGFILE" 2>&1 &
             echo $! > "$PIDFILE"
             touch "$ACTIVE_FLAG"
             echo "Hysteria успешно запущена."
