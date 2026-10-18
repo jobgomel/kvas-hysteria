@@ -105,14 +105,23 @@ install_hysteria() {
         *armv7*|*armv6*|*arm*)        BINARY_ARCH="arm" ;;
         *mipsel*|*mipsle*)            BINARY_ARCH="mipsle" ;;
         *mips64el*)                   BINARY_ARCH="mipsle" ;;
-        *mips*)                       BINARY_ARCH="mipsle" ;;
+        *mips*)
+            # Проверяем порядок байтов (ELF header: 5-й байт 01 = LSB/little-endian, 02 = MSB/big-endian)
+            ENDIAN_BYTE=$(dd if=/bin/sh bs=1 count=1 skip=5 2>/dev/null | od -b 2>/dev/null | awk 'NR==1 {print $2}')
+            if [ "$ENDIAN_BYTE" = "002" ] || [ "$ENDIAN_BYTE" = "2" ]; then
+                echo -e "${RED}Ошибка: Архитектура MIPS Big-Endian не поддерживается официальными сборками Hysteria.${NC}"
+                exit 1
+            else
+                BINARY_ARCH="mipsle"
+            fi
+            ;;
         *x86_64*|*amd64*)             BINARY_ARCH="amd64" ;;
         *i?86*|*x86*)                 BINARY_ARCH="386" ;;
         *)                            BINARY_ARCH="" ;;
     esac
 
-    if [ -z "$ARCH" ]; then
-        echo -e "${RED}Ошибка: Неподдерживаемая архитектура: $ARCH${NC}"
+    if [ -z "$BINARY_ARCH" ]; then
+        echo -e "${RED}Ошибка: Не удалось определить архитектуру устройства ($ARCH).${NC}"
         exit 1
     fi
 
@@ -204,6 +213,10 @@ install_hysteria() {
 add_config() {
     URL="$1"
 
+    # Безопасные права доступа (0600) при создании конфигурации с паролями/ключами
+    OLD_UMASK=$(umask)
+    umask 077
+
     # 1. Если аргумент не передан или передан '-' — читаем через read / stdin
     # Это полностью обходит 512-байтный лимит интерактивной строки ash
     if [ -z "$URL" ] || [ "$URL" = "-" ]; then
@@ -229,9 +242,13 @@ add_config() {
 
     echo "Разбираем конфигурацию пира..."
     URL=$(echo "$URL" | tr -d '[:space:]')
-    MAIN_PART=$(echo "$URL" | sed -E 's|h2://||;s|hysteria2://||;s|\?.*||')
+    MAIN_PART=$(echo "$URL" | sed -E 's|h2://||;s|hysteria2://||;s|\?.*||;s|#.*||')
+    if ! echo "$MAIN_PART" | grep -q '@'; then
+        echo -e "${RED}Ошибка парсинга ссылки (отсутствует разделитель '@').${NC}"
+        exit 1
+    fi
     AUTH=$(echo "$MAIN_PART" | cut -d'@' -f1)
-    SERVER=$(echo "$MAIN_PART" | cut -d'@' -f2)
+    SERVER=$(echo "$MAIN_PART" | cut -d'@' -f2 | sed 's|/*$||')
     SNI=$(echo "$URL" | sed -n -E 's/.*([?&])sni=([^&#]*).*/\2/p')
     FP=$(echo "$URL" | sed -n -E 's/.*([?&])fp=([^&#]*).*/\2/p')
     OBFS_TYPE=$(echo "$URL" | sed -n -E 's/.*([?&])obfs=([^&#]*).*/\2/p')
@@ -242,6 +259,10 @@ add_config() {
         echo -e "${RED}Ошибка парсинга ссылки.${NC}"
         exit 1
     fi
+
+    mkdir -p "$(dirname "$FINAL_CONFIG_PATH")"
+    touch "$FINAL_CONFIG_PATH"
+    chmod 600 "$FINAL_CONFIG_PATH"
 
     # Генерируем верхнюю (динамическую) часть конфига
     cat << EOC > "$FINAL_CONFIG_PATH"
@@ -270,6 +291,8 @@ EOC
         -e "s|@PROXY_LOCAL_PORT_HTTP|${PROXY_LOCAL_PORT_HTTP}|g" \
         "$TEMPLATE_CONFIG" >> "$FINAL_CONFIG_PATH"
 
+    chmod 600 "$FINAL_CONFIG_PATH"
+    umask "$OLD_UMASK" 2>/dev/null || true
     echo -e "${GREEN}Конфигурация успешно сгенерирована: $FINAL_CONFIG_PATH${NC}"
 
     echo "Активация службы автозапуска..."
@@ -279,11 +302,11 @@ EOC
     sleep 2
 
     # === ИНТЕГРАЦИЯ С KEENETIC RCI API ===
-    IFACE_INFO=$(curl -s "localhost:79/rci/show/interface/${KEENETIC_PROXY_NAME}" 2>/dev/null)
+    IFACE_INFO=$(curl -4 -s "http://127.0.0.1:79/rci/show/interface/${KEENETIC_PROXY_NAME}" 2>/dev/null)
     if echo "$IFACE_INFO" | grep -q "\"id\": \"${KEENETIC_PROXY_NAME}\""; then
         echo -e "${GREEN}Интерфейс '${KEENETIC_PROXY_DESC}' (${KEENETIC_PROXY_NAME}) уже существует в KeeneticOS (создание пропущено, маршруты сохранены).${NC}"
         # Убеждаемся, что интерфейс включен (up)
-        curl -s -d '[{"interface": {"name": "'${KEENETIC_PROXY_NAME}'", "up": true}}]' "localhost:79/rci/" > /dev/null 2>&1
+        curl -4 -s -d '[{"interface": {"name": "'${KEENETIC_PROXY_NAME}'", "up": true}}]' "http://127.0.0.1:79/rci/" > /dev/null 2>&1
     else
         echo "Интеграция с KeeneticOS API (регистрация интерфейса)..."
         # В JSON подставляем порт из env.sh (PROXY_LOCAL_PORT_SOCKS вместо старого PROXY_LOCAL_PORT)
@@ -300,8 +323,8 @@ EOC
             "system": { "configuration": { "save": true } }
         }]'
 
-        curl -s -d "${API_DATA}" "localhost:79/rci/" > /dev/null 2>&1
-        curl -s -d '[{"interface": {"name": "'${KEENETIC_PROXY_NAME}'", "up": true}}]' "localhost:79/rci/" > /dev/null 2>&1
+        curl -4 -s -d "${API_DATA}" "http://127.0.0.1:79/rci/" > /dev/null 2>&1
+        curl -4 -s -d '[{"interface": {"name": "'${KEENETIC_PROXY_NAME}'", "up": true}}]' "http://127.0.0.1:79/rci/" > /dev/null 2>&1
 
         echo -e "${GREEN}Интерфейс '${KEENETIC_PROXY_DESC}' (${KEENETIC_PROXY_NAME}) успешно зарегистрирован в KeeneticOS!${NC}"
         echo -e "${YELLOW}Чтобы переключить маршруты Kvas на этот туннель, выполните:${NC}"
@@ -316,7 +339,7 @@ uninstall_packet() {
     [ -f "$SYSTEM_INIT_PATH" ] && "$SYSTEM_INIT_PATH" stop
 
     echo "Удаление прокси-интерфейса из KeeneticOS..."
-    curl -s -d '[{"interface": { "name": "'${KEENETIC_PROXY_NAME}'","no": true },"system": {"configuration": {"save": true}}}]' "localhost:79/rci/" > /dev/null 2>&1
+    curl -4 -s -d '[{"interface": { "name": "'${KEENETIC_PROXY_NAME}'","no": true },"system": {"configuration": {"save": true}}}]' "http://127.0.0.1:79/rci/" > /dev/null 2>&1
 
     echo "Удаление симлинков и файлов пакета..."
     rm -f /opt/bin/kvas-hysteria /opt/bin/hysteria "$SYSTEM_INIT_PATH" "$PIDFILE" "$WATCHDOG_PID" /var/run/hysteria.active "$LOGFILE"
@@ -376,20 +399,26 @@ update_packet() {
         fi
     fi
 
-    INSTALL_URL="https://raw.githubusercontent.com/${REPO}/main/install.sh"
-    API_URL="https://api.github.com/repos/${REPO}/contents/install.sh"
+    REF="${TARGET:-main}"
+    [ "$REF" = "latest" ] && REF="main"
+
+    INSTALL_URL="https://raw.githubusercontent.com/${REPO}/${REF}/install.sh"
+    API_URL="https://api.github.com/repos/${REPO}/contents/install.sh?ref=${REF}"
     TMP_INSTALLER="/tmp/kvas_install_$$.sh"
 
-    echo "Загрузка актуального скрипта установки с GitHub..."
+    echo "Загрузка актуального скрипта установки с GitHub (${REF})..."
     DOWNLOADED=0
 
-    # 1. Прямая загрузка через IPv4 (защита от неработающего IPv6 на роутере)
+    # 1. Прямая загрузка через IPv4 (для целевой ветки/релиза)
     if curl -4 -sL -f --connect-timeout 10 -o "$TMP_INSTALLER" "$INSTALL_URL" 2>/dev/null; then
         DOWNLOADED=1
     # 2. Резервный источник через GitHub API (raw-заголовок)
     elif curl -4 -sL -f --connect-timeout 10 -H "Accept: application/vnd.github.raw" -o "$TMP_INSTALLER" "$API_URL" 2>/dev/null; then
         DOWNLOADED=1
-    # 3. Резерв через локальный туннель socks5 (если служба активна)
+    # 3. Fallback на ветку main (если запрошенный тег/ветка не содержит отдельный install.sh)
+    elif [ "$REF" != "main" ] && curl -4 -sL -f --connect-timeout 10 -o "$TMP_INSTALLER" "https://raw.githubusercontent.com/${REPO}/main/install.sh" 2>/dev/null; then
+        DOWNLOADED=1
+    # 4. Резерв через локальный туннель socks5 (если служба активна)
     elif [ -n "${PROXY_LOCAL_PORT_SOCKS}" ] && curl -sL -f --connect-timeout 10 -x "socks5h://${PROXY_LOCAL_IP:-127.0.0.1}:${PROXY_LOCAL_PORT_SOCKS:-10808}" -o "$TMP_INSTALLER" "$INSTALL_URL" 2>/dev/null; then
         DOWNLOADED=1
     fi
@@ -403,7 +432,7 @@ update_packet() {
 
     chmod +x "$TMP_INSTALLER"
 
-    INSTALL_TARGET="${TARGET:-latest}"
+    INSTALL_TARGET="${TARGET:-${LATEST_TAG:-latest}}"
     ARGS="$INSTALL_TARGET"
     [ "$FORCE" -eq 1 ] && ARGS="$ARGS --force"
 

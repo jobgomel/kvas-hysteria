@@ -35,7 +35,7 @@ get_random_url() {
 query_ip() {
     target_url="$1"
     timeout="${2:-5}"
-    curl -f -s -m "$timeout" --connect-timeout 4 -x "socks5h://${PROXY_LOCAL_IP}:${PROXY_LOCAL_PORT_SOCKS}" "$target_url" 2>/dev/null | tr -d '\r\n[:space:]'
+    curl -4 -f -s -m "$timeout" --connect-timeout 4 -x "socks5h://${PROXY_LOCAL_IP}:${PROXY_LOCAL_PORT_SOCKS}" "$target_url" 2>/dev/null | tr -d '\r\n[:space:]'
 }
 
 is_valid_ip() {
@@ -63,7 +63,6 @@ check_proxy() {
             CURRENT_DOMAIN="${CURRENT_DOMAIN%%/*}"
             return 0
         fi
-        break
     done
 
     return 1

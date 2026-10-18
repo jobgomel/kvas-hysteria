@@ -4,7 +4,8 @@ set -e
 REPO="jobgomel/kvas-hysteria"
 APPS_DIR="/opt/apps/kvas-hysteria"
 TMP_DIR="/tmp/kvas-hysteria-install-$$"
-TMP_ZIP="${TMP_DIR}/package.zip"
+TMP_ARCHIVE="${TMP_DIR}/package.tar.gz"
+DIR="$(cd "$(dirname "$0")" && pwd)"
 FORCE="${FORCE:-0}"
 TARGET_VER=""
 for arg in "$@"; do
@@ -97,15 +98,15 @@ else
         exit 0
     fi
 
-    ARCHIVE_URL="https://github.com/${REPO}/archive/refs/tags/${TARGET_TAG}.zip"
+    ARCHIVE_URL="https://github.com/${REPO}/archive/refs/tags/${TARGET_TAG}.tar.gz"
     mkdir -p "$TMP_DIR"
 
     # Загрузка архива (с проверкой наличия префикса 'v')
-    if ! curl -4 -sL -f --connect-timeout 20 -o "$TMP_ZIP" "$ARCHIVE_URL" 2>/dev/null; then
+    if ! curl -4 -sL -f --connect-timeout 20 -o "$TMP_ARCHIVE" "$ARCHIVE_URL" 2>/dev/null; then
         if [ "${TARGET_TAG#v}" = "$TARGET_TAG" ]; then
             ALT_TAG="v${TARGET_TAG}"
-            ALT_URL="https://github.com/${REPO}/archive/refs/tags/${ALT_TAG}.zip"
-            if curl -4 -sL -f --connect-timeout 20 -o "$TMP_ZIP" "$ALT_URL" 2>/dev/null; then
+            ALT_URL="https://github.com/${REPO}/archive/refs/tags/${ALT_TAG}.tar.gz"
+            if curl -4 -sL -f --connect-timeout 20 -o "$TMP_ARCHIVE" "$ALT_URL" 2>/dev/null; then
                 TARGET_TAG="$ALT_TAG"
                 ARCHIVE_URL="$ALT_URL"
             fi
@@ -113,14 +114,14 @@ else
     fi
 
     # Если по тегу архив не найден, пробуем загрузить ветку (например: main или dev)
-    if [ ! -s "$TMP_ZIP" ]; then
-        BRANCH_URL="https://github.com/${REPO}/archive/refs/heads/${TARGET_TAG}.zip"
-        if curl -4 -sL -f --connect-timeout 20 -o "$TMP_ZIP" "$BRANCH_URL" 2>/dev/null; then
+    if [ ! -s "$TMP_ARCHIVE" ]; then
+        BRANCH_URL="https://github.com/${REPO}/archive/refs/heads/${TARGET_TAG}.tar.gz"
+        if curl -4 -sL -f --connect-timeout 20 -o "$TMP_ARCHIVE" "$BRANCH_URL" 2>/dev/null; then
             ARCHIVE_URL="$BRANCH_URL"
         fi
     fi
 
-    if [ ! -s "$TMP_ZIP" ]; then
+    if [ ! -s "$TMP_ARCHIVE" ]; then
         echo "Ошибка: Не удалось скачать релиз/ветку '${TARGET_TAG}' (${ARCHIVE_URL})."
         echo "Для просмотра доступных версий выполните команду: install.sh list"
         rm -rf "$TMP_DIR"
@@ -128,7 +129,7 @@ else
     fi
 
     echo "Распаковка архива версии ${TARGET_TAG}..."
-    unzip -qo "$TMP_ZIP" -d "$TMP_DIR"
+    tar -xzf "$TMP_ARCHIVE" -C "$TMP_DIR"
 
     SRC_PATH=$(find "$TMP_DIR" -type d -name "src" | head -n 1)
     if [ -n "$SRC_PATH" ] && [ -d "$SRC_PATH" ]; then
@@ -144,30 +145,15 @@ else
     rm -rf "$TMP_DIR"
 fi
 
-# Восстанавливаем пользовательский env.sh, если он существовал
-if [ "$PRESERVED_ENV" -eq 1 ] && [ -f "$TMP_ENV" ]; then
-    echo "Восстановление пользовательских настроек из предыдущей установки..."
-    cp -f "$TMP_ENV" "${APPS_DIR}/etc/conf/env.sh"
-    rm -f "$TMP_ENV"
-fi
-
-# 4. Назначение прав и создание системного симлинка
-chmod +x "${APPS_DIR}/bin/manager.sh"
-chmod +x "${APPS_DIR}/etc/init.d/S99hysteria"
-chmod +x "${APPS_DIR}/etc/ndm/"*.sh 2>/dev/null || true
-
-ln -sf "${APPS_DIR}/bin/manager.sh" /opt/bin/kvas-hysteria
-
-# 5. Установка или обновление бинарника Hysteria
-if [ ! -f "${APPS_DIR}/bin/hysteria" ]; then
-    /opt/bin/kvas-hysteria install
+# 4. Передача управления скрипту пост-установки пакета
+if [ -f "${APPS_DIR}/bin/setup.sh" ]; then
+    chmod +x "${APPS_DIR}/bin/setup.sh"
+    sh "${APPS_DIR}/bin/setup.sh" \
+        --preserved-env "$PRESERVED_ENV" \
+        --env-backup "$TMP_ENV" \
+        --was-running "$WAS_RUNNING"
 else
-    ln -sf "${APPS_DIR}/bin/hysteria" /opt/bin/hysteria
-fi
-
-if [ "$WAS_RUNNING" -eq 1 ] && [ -f "/opt/etc/init.d/S99hysteria" ]; then
-    echo "Перезапуск службы Hysteria после обновления пакета..."
-    /opt/etc/init.d/S99hysteria restart
-else
-    /opt/bin/kvas-hysteria
+    echo "Предупреждение: ${APPS_DIR}/bin/setup.sh не найден."
+    chmod +x "${APPS_DIR}/bin/manager.sh" 2>/dev/null || true
+    ln -sf "${APPS_DIR}/bin/manager.sh" /opt/bin/kvas-hysteria 2>/dev/null || true
 fi
