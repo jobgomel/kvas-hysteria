@@ -15,8 +15,12 @@ elif [ -f "$(dirname "$0")/../version" ]; then
     APP_VER=$(cat "$(dirname "$0")/../version" 2>/dev/null | tr -d '\r\n')
 fi
 
-# Импортируем глобальные переменные проекта
+# Импортируем конфигурацию проекта (env.sh автоматически подключает const.sh)
 if [ -f "$ENV_CONFIG" ]; then
+    # Очистка устаревших/поврежденных определений цветов из env.sh (вынесены в const.sh)
+    if grep -q -E "^[[:space:]]*(RED|GREEN|YELLOW|BLUE|NC)=" "$ENV_CONFIG" 2>/dev/null; then
+        sed -i -E "/^[[:space:]]*(RED|GREEN|YELLOW|BLUE|NC)=/d" "$ENV_CONFIG" 2>/dev/null || true
+    fi
     . "$ENV_CONFIG"
 elif [ "$1" = "-v" ] || [ "$1" = "--version" ] || [ "$1" = "-V" ] || [ "$1" = "version" ]; then
     : # Разрешаем вывод версии даже без основного файла конфигурации окружения
@@ -348,16 +352,16 @@ uninstall_packet() {
 }
 
 update_packet() {
-    TARGET="$1"
+    TARGET=""
     FORCE=0
 
-    # Проверка флагов принудительного обновления (--force / -f)
-    if [ "$TARGET" = "-f" ] || [ "$TARGET" = "--force" ]; then
-        FORCE=1
-        TARGET=""
-    elif [ "$2" = "-f" ] || [ "$2" = "--force" ]; then
-        FORCE=1
-    fi
+    # Проверка аргументов и флагов принудительного обновления (--force / -f)
+    for arg in "$@"; do
+        case "$arg" in
+            -f|--force) FORCE=1 ;;
+            *) [ -z "$TARGET" ] && [ -n "$arg" ] && TARGET="$arg" ;;
+        esac
+    done
 
     # Если запрошено обновление бинарника Hysteria
     if [ "$TARGET" = "hysteria" ] || [ "$TARGET" = "bin" ]; then
@@ -463,7 +467,7 @@ show_log() {
 
 case "$1" in
     -v|--version|-V|version) show_version ;;
-    update|upgrade) update_packet "$2" "$3" ;;
+    update|upgrade) shift; update_packet "$@" ;;
     install)    install_hysteria ;;
     uninstall)  uninstall_packet ;;
     add)        add_config "$2" ;;

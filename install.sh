@@ -5,6 +5,8 @@ REPO="jobgomel/kvas-hysteria"
 APPS_DIR="/opt/apps/kvas-hysteria"
 TMP_DIR="/tmp/kvas-hysteria-install-$$"
 TMP_ARCHIVE="${TMP_DIR}/package.tar.gz"
+TMP_ENV="/tmp/kvas_env_backup_$$.sh"
+trap 'rm -rf "$TMP_DIR" "$TMP_ENV"' EXIT INT TERM
 DIR="$(cd "$(dirname "$0")" && pwd)"
 FORCE="${FORCE:-0}"
 TARGET_VER=""
@@ -43,7 +45,6 @@ mkdir -p "${APPS_DIR}/bin" "${APPS_DIR}/etc/conf" "${APPS_DIR}/etc/init.d" "${AP
 
 # Сохраняем существующий env.sh при обновлении
 PRESERVED_ENV=0
-TMP_ENV="/tmp/kvas_env_backup_$$.sh"
 if [ -f "${APPS_DIR}/etc/conf/env.sh" ]; then
     PRESERVED_ENV=1
     cp -f "${APPS_DIR}/etc/conf/env.sh" "$TMP_ENV"
